@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum GridColor {
+pub enum CellColor {
     RED,
     BLUE,
     YELLOW,
@@ -21,12 +21,12 @@ pub enum Orientation {
 #[derive(Clone, Copy, Component, Debug, PartialEq)]
 pub enum Cell<T: Clone + Copy + PartialEq> {
     Empty,
-    Virus(T, GridColor),
-    Pill(T, GridColor, Option<Orientation>)
+    Virus(T, CellColor),
+    Pill(T, CellColor, Option<Orientation>)
 }
 
 impl<T: Clone + Copy + PartialEq> Cell<T> {
-    pub fn color(&self) -> Option<GridColor> {
+    pub fn color(&self) -> Option<CellColor> {
         match self {
             Cell::Empty => None,
             Cell::Virus(_, color) => Some(*color),
@@ -381,10 +381,10 @@ mod tests {
         let grid = Grid {
             rows: 2,
             cols: 2,
-            cells: vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Virus(0, GridColor::RED)],
+            cells: vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED)],
         };
         let next_grid = grid.next();
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Virus(0, GridColor::RED)]);
+        assert_eq!(next_grid.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED)]);
     }
 
     #[test]
@@ -392,10 +392,10 @@ mod tests {
         let grid = Grid {
             rows: 2,
             cols: 2,
-            cells: vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Pill(0,GridColor::RED, None)],
+            cells: vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::RED, None)],
         };
         let next_grid = grid.next();
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Pill(0,GridColor::RED, None), Cell::<u32>::Empty, Cell::<u32>::Empty]);
+        assert_eq!(next_grid.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::RED, None), Cell::<u32>::Empty, Cell::<u32>::Empty]);
     }
 
     #[test]
@@ -403,10 +403,10 @@ mod tests {
         let grid = Grid {
             rows: 2,
             cols: 2,
-            cells: vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Pill(0,GridColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,GridColor::RED, Some(Orientation::Left))],
+            cells: vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))],
         };
         let next_grid = grid.next();
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Pill(0,GridColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,GridColor::RED, Some(Orientation::Left)), Cell::<u32>::Empty, Cell::<u32>::Empty]);
+        assert_eq!(next_grid.cells, vec![Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left)), Cell::<u32>::Empty, Cell::<u32>::Empty]);
     }
 
     #[test]
@@ -414,10 +414,10 @@ mod tests {
         let grid = Grid {
             rows: 2,
             cols: 2,
-            cells: vec![Cell::<u32>::Virus(0, GridColor::YELLOW), Cell::<u32>::Empty, Cell::<u32>::Pill(0,GridColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,GridColor::RED, Some(Orientation::Left))],
+            cells: vec![Cell::<u32>::Virus(0, CellColor::YELLOW), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))],
         };
         let next_grid = grid.next();
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Virus(0, GridColor::YELLOW), Cell::<u32>::Empty, Cell::<u32>::Pill(0,GridColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,GridColor::RED, Some(Orientation::Left))]);
+        assert_eq!(next_grid.cells, vec![Cell::<u32>::Virus(0, CellColor::YELLOW), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))]);
     }
 
     #[test]
@@ -425,10 +425,10 @@ mod tests {
         let grid = Grid {
             rows: 2,
             cols: 2,
-            cells: vec![Cell::<u32>::Empty, Cell::<u32>::Virus(0, GridColor::YELLOW), Cell::<u32>::Pill(0,GridColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,GridColor::RED, Some(Orientation::Left))],
+            cells: vec![Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::YELLOW), Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))],
         };
         let next_grid = grid.next();
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Virus(0, GridColor::YELLOW), Cell::<u32>::Pill(0,GridColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,GridColor::RED, Some(Orientation::Left))]);
+        assert_eq!(next_grid.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::YELLOW), Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))]);
     }
 
     #[test]
@@ -436,10 +436,10 @@ mod tests {
         let grid = Grid {
             rows: 2,
             cols: 2,
-            cells: vec![Cell::<u32>::Pill(0,GridColor::YELLOW, Some(Orientation::Right)), Cell::<u32>::Pill(0,GridColor::YELLOW, Some(Orientation::Left)), Cell::<u32>::Pill(0,GridColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,GridColor::RED, Some(Orientation::Left))],
+            cells: vec![Cell::<u32>::Pill(0,CellColor::YELLOW, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::YELLOW, Some(Orientation::Left)), Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))],
         };
         let next_grid = grid.next();
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Pill(0,GridColor::YELLOW, Some(Orientation::Right)), Cell::<u32>::Pill(0,GridColor::YELLOW, Some(Orientation::Left)), Cell::<u32>::Pill(0,GridColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,GridColor::RED, Some(Orientation::Left))])
+        assert_eq!(next_grid.cells, vec![Cell::<u32>::Pill(0,CellColor::YELLOW, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::YELLOW, Some(Orientation::Left)), Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))])
     }
 
     #[test]
@@ -447,10 +447,10 @@ mod tests {
         let grid = Grid {
             rows: 2,
             cols: 2,
-            cells: vec![Cell::<u32>::Pill(0,GridColor::YELLOW, None), Cell::<u32>::Empty, Cell::<u32>::Pill(0,GridColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,GridColor::RED, Some(Orientation::Left))],
+            cells: vec![Cell::<u32>::Pill(0,CellColor::YELLOW, None), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))],
         };
         let next_grid = grid.next();
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Pill(0,GridColor::YELLOW, None), Cell::<u32>::Empty, Cell::<u32>::Pill(0,GridColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,GridColor::RED, Some(Orientation::Left))])
+        assert_eq!(next_grid.cells, vec![Cell::<u32>::Pill(0,CellColor::YELLOW, None), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))])
     }
 
     #[test]
@@ -458,10 +458,10 @@ mod tests {
         let grid = Grid {
             rows: 2,
             cols: 2,
-            cells: vec![Cell::<u32>::Pill(0,GridColor::YELLOW, Some(Orientation::Above)), Cell::<u32>::Empty, Cell::<u32>::Pill(0,GridColor::BLUE, Some(Orientation::Below)), Cell::<u32>::Empty],
+            cells: vec![Cell::<u32>::Pill(0,CellColor::YELLOW, Some(Orientation::Above)), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Below)), Cell::<u32>::Empty],
         };
         let next_grid = grid.next();
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Pill(0,GridColor::YELLOW, Some(Orientation::Above)), Cell::<u32>::Empty, Cell::<u32>::Pill(0,GridColor::BLUE, Some(Orientation::Below)), Cell::<u32>::Empty])
+        assert_eq!(next_grid.cells, vec![Cell::<u32>::Pill(0,CellColor::YELLOW, Some(Orientation::Above)), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Below)), Cell::<u32>::Empty])
 
     }
 
@@ -470,7 +470,7 @@ mod tests {
         let grid = Grid {
             rows: 4,
             cols: 2,
-            cells: vec![Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Empty, Cell::<u32>::Pill(0,GridColor::RED, None), Cell::<u32>::Empty],
+            cells: vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::RED, None), Cell::<u32>::Empty],
         };
         let next_grid = grid.resolve(|a, b| a.color().is_some() && a.color() == b.color());
         assert_eq!(next_grid.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty]);
@@ -481,7 +481,7 @@ mod tests {
         let grid = Grid {
             rows: 2,
             cols: 4,
-            cells: vec![Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Pill(0,GridColor::RED, None), Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty],
+            cells: vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Pill(0,CellColor::RED, None), Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty],
         };
         let next_grid = grid.resolve(|a, b| a.color().is_some() && a.color() == b.color());
         assert_eq!(next_grid.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty]);
@@ -492,10 +492,10 @@ mod tests {
         let grid = Grid {
             rows: 4,
             cols: 2,
-            cells: vec![Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Empty],
+            cells: vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty],
         };
         let next_grid = grid.resolve(|a, b| a.color().is_some() && a.color() == b.color());
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Empty]);
+        assert_eq!(next_grid.cells, vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty]);
     }
 
     #[test]
@@ -503,10 +503,10 @@ mod tests {
         let grid = Grid {
             rows: 2,
             cols: 4,
-            cells: vec![Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty],
+            cells: vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty],
         };
         let next_grid = grid.resolve(|a, b| a.color().is_some() && a.color() == b.color());
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Virus(0, GridColor::RED), Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty]);
+        assert_eq!(next_grid.cells, vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty]);
     }
 
     #[test]
@@ -515,19 +515,19 @@ mod tests {
             rows: 2,
             cols: 4,
             cells: vec![
-                Cell::Pill(0, GridColor::RED, Some(Orientation::Right)), 
-                Cell::Pill(0, GridColor::RED, Some(Orientation::Left)), 
-                Cell::Pill(0, GridColor::RED, Some(Orientation::Above)), 
-                Cell::Pill(0, GridColor::RED, Some(Orientation::Above)), 
+                Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), 
+                Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), 
+                Cell::Pill(0, CellColor::RED, Some(Orientation::Above)), 
+                Cell::Pill(0, CellColor::RED, Some(Orientation::Above)), 
                 Cell::Empty, Cell::Empty, 
-                Cell::Pill(0, GridColor::BLUE, Some(Orientation::Below)), 
-                Cell::Pill(0, GridColor::BLUE, Some(Orientation::Below))]};
+                Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below)), 
+                Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below))]};
         let next_grid = grid.resolve(|a, b| a.color().is_some() && a.color() == b.color());
         assert_eq!(next_grid.cells, 
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, 
-                Cell::Pill(0, GridColor::BLUE, None), 
-                Cell::Pill(0, GridColor::BLUE, None)]);
+                Cell::Pill(0, CellColor::BLUE, None), 
+                Cell::Pill(0, CellColor::BLUE, None)]);
     }
 
     #[test]
@@ -535,24 +535,24 @@ mod tests {
         let mut grid = Grid {
             rows: 2,
             cols: 3,
-            cells: vec![Cell::Pill(0, GridColor::RED, Some(Orientation::Right)), Cell::Pill(0, GridColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty],
+            cells: vec![Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty],
         };
         assert!(grid.move_pill((0, 0), (0, 1)));
         assert_eq!(
             grid.cells, 
-            vec![Cell::Empty, Cell::Pill(0, GridColor::RED, Some(Orientation::Right)), Cell::Pill(0, GridColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty]);
+            vec![Cell::Empty, Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty]);
         assert!(grid.move_pill((0, 1), (1, 1)));
         assert_eq!(
             grid.cells, 
-            vec![Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Pill(0, GridColor::RED, Some(Orientation::Right)), Cell::Pill(0, GridColor::RED, Some(Orientation::Left))]);
+            vec![Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left))]);
         assert!(grid.move_pill((1, 1), (1, 0)));
         assert_eq!(
             grid.cells, 
-            vec![Cell::Empty, Cell::Empty, Cell::Empty, Cell::Pill(0, GridColor::RED, Some(Orientation::Right)), Cell::Pill(0, GridColor::RED, Some(Orientation::Left)), Cell::Empty]);
+            vec![Cell::Empty, Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty]);
         assert!(grid.move_pill((1, 0), (0, 0)));
         assert_eq!(
             grid.cells, 
-            vec![Cell::Pill(0, GridColor::RED, Some(Orientation::Right)), Cell::Pill(0, GridColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty]);
+            vec![Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty]);
     }
 
     #[test]
@@ -560,12 +560,12 @@ mod tests {
         let mut grid = Grid {
             rows: 2,
             cols: 4,
-            cells: vec![Cell::Pill(0, GridColor::RED, Some(Orientation::Right)), Cell::Pill(0, GridColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty],
+            cells: vec![Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty],
         };
         assert!(!grid.move_pill((0, 1), (0, 0)));
         assert_eq!(
             grid.cells, 
-            vec![Cell::Pill(0, GridColor::RED, Some(Orientation::Right)), Cell::Pill(0, GridColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty]);
+            vec![Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty]);
     }
 
     #[test]
@@ -573,12 +573,12 @@ mod tests {
         let mut grid = Grid {
             rows: 2,
             cols: 4,
-            cells: vec![Cell::Empty, Cell::Empty, Cell::Pill(0, GridColor::RED, Some(Orientation::Right)), Cell::Pill(0, GridColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty],
+            cells: vec![Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty],
         };
         assert!(!grid.move_pill((0, 2), (0, 3)));
         assert_eq!(
             grid.cells, 
-            vec![Cell::Empty, Cell::Empty, Cell::Pill(0, GridColor::RED, Some(Orientation::Right)), Cell::Pill(0, GridColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty]);
+            vec![Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty]);
     }
 
     #[test]
@@ -586,12 +586,12 @@ mod tests {
         let mut grid = Grid {
             rows: 2,
             cols: 2,
-            cells: vec![Cell::Empty, Cell::Empty, Cell::Pill(0, GridColor::RED, Some(Orientation::Right)), Cell::Pill(0, GridColor::RED, Some(Orientation::Left))],
+            cells: vec![Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left))],
         };
         grid.remove_piece(1, 0);
         assert_eq!(
             grid.cells, 
-            vec![Cell::Empty, Cell::Empty, Cell::Empty, Cell::Pill(0, GridColor::RED, None)]);
+            vec![Cell::Empty, Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, None)]);
     }
 
     #[test]
@@ -599,12 +599,12 @@ mod tests {
         let mut grid = Grid {
             rows: 2,
             cols: 2,
-            cells: vec![Cell::Empty, Cell::Empty, Cell::Pill(0, GridColor::RED, Some(Orientation::Right)), Cell::Pill(0, GridColor::RED, Some(Orientation::Left))],
+            cells: vec![Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left))],
         };
         grid.remove_piece(1, 1);
         assert_eq!(
             grid.cells, 
-            vec![Cell::Empty, Cell::Empty, Cell::Pill(0, GridColor::RED, None), Cell::Empty]);
+            vec![Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, None), Cell::Empty]);
     }
 
     #[test]
@@ -614,37 +614,37 @@ mod tests {
             cols: 3,
             cells: vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
-                Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Above)), Cell::Empty,
-                Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Below)), Cell::Empty]};
+                Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)), Cell::Empty,
+                Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below)), Cell::Empty]};
         assert!(grid.rotate_pill((1, 1), Orientation::Left));
         assert_eq!(
             grid.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
-                Cell::Pill(0, GridColor::BLUE, Some(Orientation::Right)), Cell::Pill(0, GridColor::BLUE, Some(Orientation::Left)), Cell::Empty,
+                Cell::Pill(0, CellColor::BLUE, Some(Orientation::Right)), Cell::Pill(0, CellColor::BLUE, Some(Orientation::Left)), Cell::Empty,
                 Cell::Empty, Cell::Empty, Cell::Empty]);
 
         assert!(grid.rotate_pill((1, 1), Orientation::Left));
         assert_eq!(
             grid.cells,
             vec![
-                Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Above)), Cell::Empty,
-                Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Below)), Cell::Empty,
+                Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)), Cell::Empty,
+                Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below)), Cell::Empty,
                 Cell::Empty, Cell::Empty, Cell::Empty]);
         assert!(grid.rotate_pill((1, 1), Orientation::Left));
         assert_eq!(
             grid.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
-                Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Right)), Cell::Pill(0, GridColor::BLUE, Some(Orientation::Left)),
+                Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Right)), Cell::Pill(0, CellColor::BLUE, Some(Orientation::Left)),
                 Cell::Empty, Cell::Empty, Cell::Empty]);
         assert!(grid.rotate_pill((1, 1), Orientation::Left));
         assert_eq!(
             grid.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
-                Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Above)), Cell::Empty,
-                Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Below)), Cell::Empty]);
+                Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)), Cell::Empty,
+                Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below)), Cell::Empty]);
     }
 
     #[test]
@@ -654,37 +654,37 @@ mod tests {
             cols: 3,
             cells: vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
-                Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Above)), Cell::Empty,
-                Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Below)), Cell::Empty]};
+                Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)), Cell::Empty,
+                Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below)), Cell::Empty]};
         assert!(grid.rotate_pill((1, 1), Orientation::Right));
         assert_eq!(
             grid.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
-                Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Right)), Cell::Pill(0, GridColor::BLUE, Some(Orientation::Left)),
+                Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Right)), Cell::Pill(0, CellColor::BLUE, Some(Orientation::Left)),
                 Cell::Empty, Cell::Empty, Cell::Empty]);
 
         assert!(grid.rotate_pill((1, 1), Orientation::Right));
         assert_eq!(
             grid.cells,
             vec![
-                Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Above)), Cell::Empty,
-                Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Below)), Cell::Empty,
+                Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)), Cell::Empty,
+                Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below)), Cell::Empty,
                 Cell::Empty, Cell::Empty, Cell::Empty]);
         assert!(grid.rotate_pill((1, 1), Orientation::Right));
         assert_eq!(
             grid.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
-                Cell::Pill(0, GridColor::BLUE, Some(Orientation::Right)), Cell::Pill(0, GridColor::BLUE, Some(Orientation::Left)), Cell::Empty,
+                Cell::Pill(0, CellColor::BLUE, Some(Orientation::Right)), Cell::Pill(0, CellColor::BLUE, Some(Orientation::Left)), Cell::Empty,
                 Cell::Empty, Cell::Empty, Cell::Empty]);
         assert!(grid.rotate_pill((1, 1), Orientation::Right));
         assert_eq!(
             grid.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
-                Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Above)), Cell::Empty,
-                Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Below)), Cell::Empty]);
+                Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)), Cell::Empty,
+                Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below)), Cell::Empty]);
     }
 
     #[test]
@@ -694,22 +694,22 @@ mod tests {
             cols: 3,
             cells: vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
-                Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Right)), Cell::Pill(0, GridColor::BLUE, Some(Orientation::Left)),
+                Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Right)), Cell::Pill(0, CellColor::BLUE, Some(Orientation::Left)),
                 Cell::Empty, Cell::Empty, Cell::Empty]};
         assert!(grid.rotate_pill((1, 2), Orientation::Right));
         assert_eq!(
             grid.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
-                Cell::Empty, Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Above)),
-                Cell::Empty, Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Below))]);
+                Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)),
+                Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below))]);
         assert!(!grid.rotate_pill((1, 2), Orientation::Right));
         assert_eq!(
             grid.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
-                Cell::Empty, Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Above)),
-                Cell::Empty, Cell::Empty, Cell::Pill(0, GridColor::BLUE, Some(Orientation::Below))]);
+                Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)),
+                Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below))]);
     }
 
     #[test]
@@ -719,21 +719,21 @@ mod tests {
             cols: 3,
             cells: vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
-                Cell::Pill(0, GridColor::BLUE, Some(Orientation::Right)), Cell::Pill(0, GridColor::BLUE, Some(Orientation::Left)), Cell::Empty,
+                Cell::Pill(0, CellColor::BLUE, Some(Orientation::Right)), Cell::Pill(0, CellColor::BLUE, Some(Orientation::Left)), Cell::Empty,
                 Cell::Empty, Cell::Empty, Cell::Empty]};
         assert!(grid.rotate_pill((1, 0), Orientation::Left));
         assert_eq!(
             grid.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
-                Cell::Pill(0, GridColor::BLUE, Some(Orientation::Above)), Cell::Empty, Cell::Empty, 
-                Cell::Pill(0, GridColor::BLUE, Some(Orientation::Below)), Cell::Empty, Cell::Empty]);
+                Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)), Cell::Empty, Cell::Empty, 
+                Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below)), Cell::Empty, Cell::Empty]);
         assert!(!grid.rotate_pill((1, 0), Orientation::Left));
         assert_eq!(
             grid.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
-                Cell::Pill(0, GridColor::BLUE, Some(Orientation::Above)), Cell::Empty, Cell::Empty, 
-                Cell::Pill(0, GridColor::BLUE, Some(Orientation::Below)), Cell::Empty, Cell::Empty]);
+                Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)), Cell::Empty, Cell::Empty, 
+                Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below)), Cell::Empty, Cell::Empty]);
     }
 }

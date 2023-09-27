@@ -71,9 +71,9 @@ fn spawn_viruses(
                 match random_value {
                     0..=2 => {
                         let color = match random_value {
-                            0 => GridColor::RED,
-                            1 => GridColor::BLUE,
-                            2 => GridColor::YELLOW,
+                            0 => CellColor::RED,
+                            1 => CellColor::BLUE,
+                            2 => CellColor::YELLOW,
                             _ => unreachable!(),
                         };
                         let ent = parent.spawn((
@@ -89,11 +89,11 @@ fn spawn_viruses(
     });
 }
 
-fn rand_color() -> GridColor {
+fn rand_color() -> CellColor {
     match thread_rng().gen_range(0..3) {
-        0 => GridColor::RED,
-        1 => GridColor::BLUE,
-        2 => GridColor::YELLOW,
+        0 => CellColor::RED,
+        1 => CellColor::BLUE,
+        2 => CellColor::YELLOW,
         _ => unreachable!(),
     }
 }
@@ -141,12 +141,12 @@ fn add_sprites(
 ) {
     for (entity, virus_type, grid_position) in virus_query.iter_mut() {
         let (mesh, material) = match virus_type.0 {
-            GridColor::RED => (mesh_handles.0.clone().into(), material_handles.0.clone()),
-            GridColor::BLUE => (mesh_handles.0.clone().into(), material_handles.1.clone()),
-            GridColor::YELLOW => (mesh_handles.0.clone().into(), material_handles.2.clone()),
-            GridColor::GREEN => (mesh_handles.0.clone().into(), material_handles.0.clone()),
-            GridColor::ORANGE => (mesh_handles.0.clone().into(), material_handles.0.clone()),
-            GridColor::PURPLE => (mesh_handles.0.clone().into(), material_handles.0.clone()),
+            CellColor::RED => (mesh_handles.0.clone().into(), material_handles.0.clone()),
+            CellColor::BLUE => (mesh_handles.0.clone().into(), material_handles.1.clone()),
+            CellColor::YELLOW => (mesh_handles.0.clone().into(), material_handles.2.clone()),
+            CellColor::GREEN => (mesh_handles.0.clone().into(), material_handles.0.clone()),
+            CellColor::ORANGE => (mesh_handles.0.clone().into(), material_handles.0.clone()),
+            CellColor::PURPLE => (mesh_handles.0.clone().into(), material_handles.0.clone()),
         };
         commands.entity(entity)
             .insert(MaterialMesh2dBundle { 
@@ -158,12 +158,12 @@ fn add_sprites(
     }
     for (entity, pill_type, grid_position) in pill_query.iter_mut() {
         let (mesh, material) = match pill_type.0 {
-            GridColor::RED => (mesh_handles.1.clone().into(), material_handles.0.clone()),
-            GridColor::BLUE => (mesh_handles.1.clone().into(), material_handles.1.clone()),
-            GridColor::YELLOW => (mesh_handles.1.clone().into(), material_handles.2.clone()),
-            GridColor::GREEN => (mesh_handles.1.clone().into(), material_handles.0.clone()),
-            GridColor::ORANGE => (mesh_handles.1.clone().into(), material_handles.0.clone()),
-            GridColor::PURPLE => (mesh_handles.1.clone().into(), material_handles.0.clone()),
+            CellColor::RED => (mesh_handles.1.clone().into(), material_handles.0.clone()),
+            CellColor::BLUE => (mesh_handles.1.clone().into(), material_handles.1.clone()),
+            CellColor::YELLOW => (mesh_handles.1.clone().into(), material_handles.2.clone()),
+            CellColor::GREEN => (mesh_handles.1.clone().into(), material_handles.0.clone()),
+            CellColor::ORANGE => (mesh_handles.1.clone().into(), material_handles.0.clone()),
+            CellColor::PURPLE => (mesh_handles.1.clone().into(), material_handles.0.clone()),
         };
         commands.entity(entity)
             .insert(MaterialMesh2dBundle { 
@@ -403,10 +403,10 @@ struct GridPosition {
 }
 
 #[derive(Component)]
-struct Virus(GridColor);
+struct Virus(CellColor);
 
 #[derive(Component)]
-struct Pill(GridColor);
+struct Pill(CellColor);
 
 #[derive(Component)]
 struct Controllable;
