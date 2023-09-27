@@ -65,16 +65,16 @@ impl<T: Clone + Copy + PartialEq> Cell<T> {
 }
 
 #[derive(Clone, Default, Resource)]
-pub struct Grid<T: Clone + Copy + PartialEq> {
+pub struct Board<T: Clone + Copy + PartialEq> {
     pub rows: usize,
     pub cols: usize,
     pub cells: Vec<Cell<T>>,
 }
 
-impl<T: Clone + Copy + PartialEq> Grid<T> {
+impl<T: Clone + Copy + PartialEq> Board<T> {
     
     pub fn new(rows: usize, cols: usize) -> Self {
-        Grid {
+        Board {
             rows,
             cols,
             cells: vec![Cell::Empty; rows * cols],
@@ -135,7 +135,7 @@ impl<T: Clone + Copy + PartialEq> Grid<T> {
 
     pub fn next(&self) -> Self {
         // Return a new grid that represents the next state
-        let mut new_grid = Grid {
+        let mut new_grid = Board {
             rows: self.rows,
             cols: self.cols,
             cells: vec![Cell::Empty; self.rows * self.cols],
@@ -367,7 +367,7 @@ mod tests {
 
     #[test]
     fn test_empty_grid() {
-        let grid = Grid {
+        let grid = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::<u32>::Empty; 4],
@@ -378,7 +378,7 @@ mod tests {
 
     #[test]
     fn test_grid_with_floating_virus() {
-        let grid = Grid {
+        let grid = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED)],
@@ -389,7 +389,7 @@ mod tests {
 
     #[test]
     fn test_grid_with_single_cell_piece_falling() {
-        let grid = Grid {
+        let grid = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::RED, None)],
@@ -400,7 +400,7 @@ mod tests {
 
     #[test]
     fn test_grid_with_connected_cell_falling() {
-        let grid = Grid {
+        let grid = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))],
@@ -411,7 +411,7 @@ mod tests {
 
     #[test]
     fn test_grid_with_connected_cell_that_cannot_fall_due_to_left_virus() {
-        let grid = Grid {
+        let grid = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::<u32>::Virus(0, CellColor::YELLOW), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))],
@@ -422,7 +422,7 @@ mod tests {
 
     #[test]
     fn test_grid_with_connected_cell_that_cannot_fall_due_to_right_virus() {
-        let grid = Grid {
+        let grid = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::YELLOW), Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))],
@@ -433,7 +433,7 @@ mod tests {
 
     #[test]
     fn test_grid_with_connected_cell_that_cannot_fall_due_to_full_pill() {
-        let grid = Grid {
+        let grid = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::<u32>::Pill(0,CellColor::YELLOW, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::YELLOW, Some(Orientation::Left)), Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))],
@@ -444,7 +444,7 @@ mod tests {
 
     #[test]
     fn test_grid_with_connected_cell_that_cannot_fall_due_to_left_pill() {
-        let grid = Grid {
+        let grid = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::<u32>::Pill(0,CellColor::YELLOW, None), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))],
@@ -455,7 +455,7 @@ mod tests {
 
     #[test]
     fn test_grid_with_connected_cell_that_cannot_fall_because_of_itself() {
-        let grid = Grid {
+        let grid = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::<u32>::Pill(0,CellColor::YELLOW, Some(Orientation::Above)), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Below)), Cell::<u32>::Empty],
@@ -467,7 +467,7 @@ mod tests {
 
     #[test]
     fn test_grid_with_vertical_match_resolves_to_empty() {
-        let grid = Grid {
+        let grid = Board {
             rows: 4,
             cols: 2,
             cells: vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::RED, None), Cell::<u32>::Empty],
@@ -478,7 +478,7 @@ mod tests {
 
     #[test]
     fn test_grid_with_horizontal_match_resolves_to_empty() {
-        let grid = Grid {
+        let grid = Board {
             rows: 2,
             cols: 4,
             cells: vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Pill(0,CellColor::RED, None), Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty],
@@ -489,7 +489,7 @@ mod tests {
 
     #[test]
     fn test_grid_with_vertical_match_no_pill_resolves_to_self() {
-        let grid = Grid {
+        let grid = Board {
             rows: 4,
             cols: 2,
             cells: vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty],
@@ -500,7 +500,7 @@ mod tests {
 
     #[test]
     fn test_grid_with_horizontal_match_resolves_to_self() {
-        let grid = Grid {
+        let grid = Board {
             rows: 2,
             cols: 4,
             cells: vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty],
@@ -511,7 +511,7 @@ mod tests {
 
     #[test]
     fn test_grid_with_partial_pill_match_cleans_up_pill() {
-        let grid = Grid {
+        let grid = Board {
             rows: 2,
             cols: 4,
             cells: vec![
@@ -532,7 +532,7 @@ mod tests {
 
     #[test]
     fn test_moving_pill_in_empty_grid() {
-        let mut grid = Grid {
+        let mut grid = Board {
             rows: 2,
             cols: 3,
             cells: vec![Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty],
@@ -557,7 +557,7 @@ mod tests {
 
     #[test]
     fn test_moving_pill_at_left_edge_of_grid() {
-        let mut grid = Grid {
+        let mut grid = Board {
             rows: 2,
             cols: 4,
             cells: vec![Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty],
@@ -570,7 +570,7 @@ mod tests {
 
     #[test]
     fn test_moving_pill_at_right_edge_of_grid() {
-        let mut grid = Grid {
+        let mut grid = Board {
             rows: 2,
             cols: 4,
             cells: vec![Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty],
@@ -583,7 +583,7 @@ mod tests {
 
     #[test]
     fn test_removing_piece_updates_left_connected_piece() {
-        let mut grid = Grid {
+        let mut grid = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left))],
@@ -596,7 +596,7 @@ mod tests {
 
     #[test]
     fn test_removing_piece_updates_right_connected_piece() {
-        let mut grid = Grid {
+        let mut grid = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left))],
@@ -609,7 +609,7 @@ mod tests {
 
     #[test]
     fn test_rotating_pill_left_on_empty_grid() {
-        let mut grid = Grid {
+        let mut grid = Board {
             rows: 3,
             cols: 3,
             cells: vec![
@@ -649,7 +649,7 @@ mod tests {
 
     #[test]
     fn test_rotating_pill_right_on_empty_grid() {
-        let mut grid = Grid {
+        let mut grid = Board {
             rows: 3,
             cols: 3,
             cells: vec![
@@ -689,7 +689,7 @@ mod tests {
 
     #[test]
     fn test_rotating_pill_right_at_right_boundary() {
-        let mut grid = Grid {
+        let mut grid = Board {
             rows: 3,
             cols: 3,
             cells: vec![
@@ -714,7 +714,7 @@ mod tests {
 
     #[test]
     fn test_rotating_pill_left_at_left_boundary() {
-        let mut grid = Grid {
+        let mut grid = Board {
             rows: 3,
             cols: 3,
             cells: vec![

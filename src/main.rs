@@ -55,14 +55,14 @@ fn spawn_board(
             transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
             ..default()
         },
-        Board,
+        GameBoard,
     ));
 }
 
 fn spawn_viruses(
     mut commands: Commands,
-    mut grid: ResMut<Grid<Entity>>,
-    query: Query<Entity, With<Board>>,
+    mut grid: ResMut<Board<Entity>>,
+    query: Query<Entity, With<GameBoard>>,
 ) {
     commands.entity(query.single()).with_children(|parent| {
         for row in 0..GRID_ROWS-1 {
@@ -78,7 +78,7 @@ fn spawn_viruses(
                         };
                         let ent = parent.spawn((
                             Virus(color),
-                            GridPosition { row, column },
+                            BoardPosition { row, column },
                         )).id();
                         grid.set(row as usize, column as usize, Cell::Virus(ent, color));
                     },
@@ -100,8 +100,8 @@ fn rand_color() -> CellColor {
 
 fn spawn_pill(
     mut commands: Commands,
-    mut grid: ResMut<Grid<Entity>>,
-    query: Query<Entity, With<Board>>,
+    mut grid: ResMut<Board<Entity>>,
+    query: Query<Entity, With<GameBoard>>,
 ){
     commands.entity(query.single()).with_children(|parent| {
         grid.set(
@@ -111,7 +111,7 @@ fn spawn_pill(
                 let color = rand_color();
                 let ent = parent.spawn((
                     Pill(color),
-                    GridPosition { row: GRID_ROWS-1, column: GRID_COLS/2-1 },
+                    BoardPosition { row: GRID_ROWS-1, column: GRID_COLS/2-1 },
                     Controllable,
                 )).id();
                 Cell::Pill(ent, color, Some(Orientation::Right))
@@ -124,7 +124,7 @@ fn spawn_pill(
                 let color = rand_color();
                 let ent = parent.spawn((
                     Pill(color),
-                    GridPosition { row: GRID_ROWS-1, column: GRID_COLS/2 },
+                    BoardPosition { row: GRID_ROWS-1, column: GRID_COLS/2 },
                 )).id();
                 Cell::Pill(ent, color, Some(Orientation::Left))
             }
@@ -136,8 +136,8 @@ fn add_sprites(
     mut commands: Commands,
     mesh_handles: Res<MeshHandles>,
     material_handles: Res<MaterialHandles>,
-    mut virus_query: Query<(Entity, &Virus, &GridPosition), Added<Virus>>,
-    mut pill_query: Query<(Entity, &Pill, &GridPosition), Added<Pill>>,
+    mut virus_query: Query<(Entity, &Virus, &BoardPosition), Added<Virus>>,
+    mut pill_query: Query<(Entity, &Pill, &BoardPosition), Added<Pill>>,
 ) {
     for (entity, virus_type, grid_position) in virus_query.iter_mut() {
         let (mesh, material) = match virus_type.0 {
@@ -176,7 +176,7 @@ fn add_sprites(
 }
 
 fn update_transforms(
-    mut query: Query<(&GridPosition, &mut Transform), Changed<GridPosition>>,
+    mut query: Query<(&BoardPosition, &mut Transform), Changed<BoardPosition>>,
 ) {
     for (grid_position, mut transform) in query.iter_mut() {
         transform.translation.x = (grid_position.column as f32 * CELL_SIZE) - (CELL_SIZE * GRID_COLS as f32) / 2.0 + CELL_SIZE / 2.0;
@@ -188,14 +188,14 @@ fn start_game(
     mut commands: Commands,
     mut state: ResMut<NextState<GameState>>,
 ) {
-    commands.insert_resource(Grid::<Entity>::new(GRID_ROWS as usize, GRID_COLS as usize));
+    commands.insert_resource(Board::<Entity>::new(GRID_ROWS as usize, GRID_COLS as usize));
     state.set(GameState::PillDropping);
 }
 
 fn clear_matches(
     mut commands: Commands,
     mut state: ResMut<NextState<GameState>>,
-    mut grid: ResMut<Grid<Entity>>,
+    mut grid: ResMut<Board<Entity>>,
 ) {
     let mut cells_cleared = false;
     let next_grid = grid.resolve(|lhs, rhs| lhs.color() == rhs.color());
@@ -223,9 +223,9 @@ fn clear_matches(
 }
 
 fn rotate_pill(
-    mut control_query: Query<&mut GridPosition, (With<Pill>, With<Controllable>)>,
-    mut query: Query<&mut GridPosition, (With<Pill>, Without<Controllable>)>,
-    mut grid: ResMut<Grid<Entity>>,
+    mut control_query: Query<&mut BoardPosition, (With<Pill>, With<Controllable>)>,
+    mut query: Query<&mut BoardPosition, (With<Pill>, Without<Controllable>)>,
+    mut grid: ResMut<Board<Entity>>,
     input: Res<Input<KeyCode>>,
 ) {
     let from = { 
@@ -265,9 +265,9 @@ fn rotate_pill(
 }
 
 fn move_pill(
-    mut control_query: Query<&mut GridPosition, (With<Pill>, With<Controllable>)>,
-    mut query: Query<&mut GridPosition, (With<Pill>, Without<Controllable>)>,
-    mut grid: ResMut<Grid<Entity>>,
+    mut control_query: Query<&mut BoardPosition, (With<Pill>, With<Controllable>)>,
+    mut query: Query<&mut BoardPosition, (With<Pill>, Without<Controllable>)>,
+    mut grid: ResMut<Board<Entity>>,
     input: Res<Input<KeyCode>>,
 ) {
     let from = { 
@@ -314,9 +314,9 @@ fn move_pill(
 fn move_pills(
     mut commands: Commands,
     mut state: ResMut<NextState<GameState>>,
-    mut query: Query<(&mut Pill, &mut GridPosition)>,
+    mut query: Query<(&mut Pill, &mut BoardPosition)>,
     control_query: Query<Entity, (With<Pill>, With<Controllable>)>,
-    grid: Res<Grid<Entity>>,
+    grid: Res<Board<Entity>>,
 ) {
     let next_grid = grid.next();
     let mut pills_moved = false;
@@ -397,7 +397,7 @@ fn adjust_fall_time(
 /// Put components here
 /// 
 #[derive(Component)]
-struct GridPosition {
+struct BoardPosition {
     row: u8,
     column: u8,
 }
@@ -412,7 +412,7 @@ struct Pill(CellColor);
 struct Controllable;
 
 #[derive(Component)]
-struct Board;
+struct GameBoard;
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
 enum GameState {
