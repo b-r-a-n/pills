@@ -83,7 +83,7 @@ impl<T: Clone + Copy + PartialEq> Board<T> {
 
     pub fn resolve<F>(&self, cmp: F) -> Self where
         F: Fn(Cell<T>, Cell<T>) -> bool {
-        let mut new_grid = self.clone();
+        let mut new_board = self.clone();
         for row in 0..self.rows {
             let mut matches = 1;
             let mut pills = if self.get(row, 0).is_pill() { 1 } else { 0 };
@@ -94,7 +94,7 @@ impl<T: Clone + Copy + PartialEq> Board<T> {
                 } else {
                     if matches >= 4 && pills >= 1 {
                         for i in 0..matches {
-                            new_grid.remove_piece(row, col - i - 1);
+                            new_board.remove_piece(row, col - i - 1);
                         }
                     }
                     matches = 1;
@@ -103,7 +103,7 @@ impl<T: Clone + Copy + PartialEq> Board<T> {
             }
             if matches >= 4 && pills >= 1 {
                 for i in 0..matches {
-                    new_grid.remove_piece(row, self.cols - i - 1);
+                    new_board.remove_piece(row, self.cols - i - 1);
                 }
             }
         }
@@ -117,7 +117,7 @@ impl<T: Clone + Copy + PartialEq> Board<T> {
                 } else {
                     if matches >= 4 && pills >= 1 {
                         for i in 0..matches {
-                            new_grid.remove_piece(row - i - 1, col);
+                            new_board.remove_piece(row - i - 1, col);
                         }
                     }
                     matches = 1;
@@ -126,66 +126,66 @@ impl<T: Clone + Copy + PartialEq> Board<T> {
             }
             if matches >= 4 && pills >= 1 {
                 for i in 0..matches {
-                    new_grid.remove_piece(self.rows - i - 1, col);
+                    new_board.remove_piece(self.rows - i - 1, col);
                 }
             }
         }
-        new_grid
+        new_board
     }
 
     pub fn next(&self) -> Self {
-        // Return a new grid that represents the next state
-        let mut new_grid = Board {
+        // Return a new board that represents the next state
+        let mut new_board = Board {
             rows: self.rows,
             cols: self.cols,
             cells: vec![Cell::Empty; self.rows * self.cols],
         };
         for col in 0..self.cols {
-            new_grid.cells[col as usize] = self.cells[col as usize];
+            new_board.cells[col as usize] = self.cells[col as usize];
         }
         // Starting from the bottom row + 1, check if any cells can move down
         for row in 1..self.rows {
             for col in 0..self.cols {
                 let cell = self.get(row, col);
                 match cell {
-                    Cell::Virus(_, _) => new_grid.cells[row * self.cols + col] = cell,
+                    Cell::Virus(_, _) => new_board.cells[row * self.cols + col] = cell,
                     Cell::Empty => continue,
                     Cell::Pill(_, _, maybe_cell_orientation) => {
-                        let below = new_grid.get(row - 1, col);
+                        let below = new_board.get(row - 1, col);
                         match below {
                             Cell::Empty => {
                                 // Need to check the connected cell
                                 match maybe_cell_orientation {
-                                    Some(Orientation::Above) => new_grid.cells[(row-1) * self.cols + col] = cell,
-                                    Some(Orientation::Below) => new_grid.cells[(row-1) * self.cols + col] = cell,
+                                    Some(Orientation::Above) => new_board.cells[(row-1) * self.cols + col] = cell,
+                                    Some(Orientation::Below) => new_board.cells[(row-1) * self.cols + col] = cell,
                                     Some(Orientation::Right) => {
                                         // If the cell to the right can fall, this one can as well
-                                        if new_grid.get(row-1, col+1) == Cell::Empty {
-                                            new_grid.cells[(row-1) * self.cols + col] = cell;
+                                        if new_board.get(row-1, col+1) == Cell::Empty {
+                                            new_board.cells[(row-1) * self.cols + col] = cell;
                                         } else {
-                                            new_grid.cells[row * self.cols + col] = cell;
+                                            new_board.cells[row * self.cols + col] = cell;
                                         }
                                     },
                                     Some(Orientation::Left) => {
                                         // We have already processed the cell to the left
                                         // If that cell is empty, then this cell can fall
-                                        if new_grid.cells[row * self.cols + col - 1] == Cell::Empty {
-                                            new_grid.cells[(row-1) * self.cols + col] = cell;
+                                        if new_board.cells[row * self.cols + col - 1] == Cell::Empty {
+                                            new_board.cells[(row-1) * self.cols + col] = cell;
                                         } else {
-                                            new_grid.cells[row * self.cols + col] = cell;
+                                            new_board.cells[row * self.cols + col] = cell;
                                         }
                                     },
-                                    None => new_grid.cells[(row-1) * self.cols + col] = cell,
+                                    None => new_board.cells[(row-1) * self.cols + col] = cell,
                                 }
                             },
-                            _ => new_grid.cells[row * self.cols + col] = cell,
+                            _ => new_board.cells[row * self.cols + col] = cell,
                         }
                     }
                 }
 
             }
         }
-        new_grid
+        new_board
     }
 
     pub fn get(&self, row: usize, col: usize) -> Cell<T> {
@@ -374,152 +374,152 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_empty_grid() {
-        let grid = Board {
+    fn test_empty_board() {
+        let board = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::<u32>::Empty; 4],
         };
-        let next_grid = grid.next();
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Empty; 4]);
+        let next_board = board.next();
+        assert_eq!(next_board.cells, vec![Cell::<u32>::Empty; 4]);
     }
 
     #[test]
-    fn test_grid_with_floating_virus() {
-        let grid = Board {
+    fn test_board_with_floating_virus() {
+        let board = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED)],
         };
-        let next_grid = grid.next();
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED)]);
+        let next_board = board.next();
+        assert_eq!(next_board.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED)]);
     }
 
     #[test]
-    fn test_grid_with_single_cell_piece_falling() {
-        let grid = Board {
+    fn test_board_with_single_cell_piece_falling() {
+        let board = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::RED, None)],
         };
-        let next_grid = grid.next();
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::RED, None), Cell::<u32>::Empty, Cell::<u32>::Empty]);
+        let next_board = board.next();
+        assert_eq!(next_board.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::RED, None), Cell::<u32>::Empty, Cell::<u32>::Empty]);
     }
 
     #[test]
-    fn test_grid_with_connected_cell_falling() {
-        let grid = Board {
+    fn test_board_with_connected_cell_falling() {
+        let board = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))],
         };
-        let next_grid = grid.next();
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left)), Cell::<u32>::Empty, Cell::<u32>::Empty]);
+        let next_board = board.next();
+        assert_eq!(next_board.cells, vec![Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left)), Cell::<u32>::Empty, Cell::<u32>::Empty]);
     }
 
     #[test]
-    fn test_grid_with_connected_cell_that_cannot_fall_due_to_left_virus() {
-        let grid = Board {
+    fn test_board_with_connected_cell_that_cannot_fall_due_to_left_virus() {
+        let board = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::<u32>::Virus(0, CellColor::YELLOW), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))],
         };
-        let next_grid = grid.next();
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Virus(0, CellColor::YELLOW), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))]);
+        let next_board = board.next();
+        assert_eq!(next_board.cells, vec![Cell::<u32>::Virus(0, CellColor::YELLOW), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))]);
     }
 
     #[test]
-    fn test_grid_with_connected_cell_that_cannot_fall_due_to_right_virus() {
-        let grid = Board {
+    fn test_board_with_connected_cell_that_cannot_fall_due_to_right_virus() {
+        let board = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::YELLOW), Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))],
         };
-        let next_grid = grid.next();
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::YELLOW), Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))]);
+        let next_board = board.next();
+        assert_eq!(next_board.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::YELLOW), Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))]);
     }
 
     #[test]
-    fn test_grid_with_connected_cell_that_cannot_fall_due_to_full_pill() {
-        let grid = Board {
+    fn test_board_with_connected_cell_that_cannot_fall_due_to_full_pill() {
+        let board = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::<u32>::Pill(0,CellColor::YELLOW, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::YELLOW, Some(Orientation::Left)), Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))],
         };
-        let next_grid = grid.next();
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Pill(0,CellColor::YELLOW, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::YELLOW, Some(Orientation::Left)), Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))])
+        let next_board = board.next();
+        assert_eq!(next_board.cells, vec![Cell::<u32>::Pill(0,CellColor::YELLOW, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::YELLOW, Some(Orientation::Left)), Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))])
     }
 
     #[test]
-    fn test_grid_with_connected_cell_that_cannot_fall_due_to_left_pill() {
-        let grid = Board {
+    fn test_board_with_connected_cell_that_cannot_fall_due_to_left_pill() {
+        let board = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::<u32>::Pill(0,CellColor::YELLOW, None), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))],
         };
-        let next_grid = grid.next();
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Pill(0,CellColor::YELLOW, None), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))])
+        let next_board = board.next();
+        assert_eq!(next_board.cells, vec![Cell::<u32>::Pill(0,CellColor::YELLOW, None), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Right)), Cell::<u32>::Pill(0,CellColor::RED, Some(Orientation::Left))])
     }
 
     #[test]
-    fn test_grid_with_connected_cell_that_cannot_fall_because_of_itself() {
-        let grid = Board {
+    fn test_board_with_connected_cell_that_cannot_fall_because_of_itself() {
+        let board = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::<u32>::Pill(0,CellColor::YELLOW, Some(Orientation::Above)), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Below)), Cell::<u32>::Empty],
         };
-        let next_grid = grid.next();
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Pill(0,CellColor::YELLOW, Some(Orientation::Above)), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Below)), Cell::<u32>::Empty])
+        let next_board = board.next();
+        assert_eq!(next_board.cells, vec![Cell::<u32>::Pill(0,CellColor::YELLOW, Some(Orientation::Above)), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::BLUE, Some(Orientation::Below)), Cell::<u32>::Empty])
 
     }
 
     #[test]
-    fn test_grid_with_vertical_match_resolves_to_empty() {
-        let grid = Board {
+    fn test_board_with_vertical_match_resolves_to_empty() {
+        let board = Board {
             rows: 4,
             cols: 2,
             cells: vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::RED, None), Cell::<u32>::Empty],
         };
-        let next_grid = grid.resolve(|a, b| a.color().is_some() && a.color() == b.color());
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty]);
+        let next_board = board.resolve(|a, b| a.color().is_some() && a.color() == b.color());
+        assert_eq!(next_board.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty]);
     }
 
     #[test]
-    fn test_grid_with_horizontal_match_resolves_to_empty() {
-        let grid = Board {
+    fn test_board_with_horizontal_match_resolves_to_empty() {
+        let board = Board {
             rows: 2,
             cols: 4,
             cells: vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Pill(0,CellColor::RED, None), Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty],
         };
-        let next_grid = grid.resolve(|a, b| a.color().is_some() && a.color() == b.color());
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty]);
+        let next_board = board.resolve(|a, b| a.color().is_some() && a.color() == b.color());
+        assert_eq!(next_board.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty]);
     }
 
     #[test]
-    fn test_grid_with_vertical_match_no_pill_resolves_to_self() {
-        let grid = Board {
+    fn test_board_with_vertical_match_no_pill_resolves_to_self() {
+        let board = Board {
             rows: 4,
             cols: 2,
             cells: vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty],
         };
-        let next_grid = grid.resolve(|a, b| a.color().is_some() && a.color() == b.color());
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty]);
+        let next_board = board.resolve(|a, b| a.color().is_some() && a.color() == b.color());
+        assert_eq!(next_board.cells, vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty]);
     }
 
     #[test]
-    fn test_grid_with_horizontal_match_resolves_to_self() {
-        let grid = Board {
+    fn test_board_with_horizontal_match_resolves_to_self() {
+        let board = Board {
             rows: 2,
             cols: 4,
             cells: vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty],
         };
-        let next_grid = grid.resolve(|a, b| a.color().is_some() && a.color() == b.color());
-        assert_eq!(next_grid.cells, vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty]);
+        let next_board = board.resolve(|a, b| a.color().is_some() && a.color() == b.color());
+        assert_eq!(next_board.cells, vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty]);
     }
 
     #[test]
-    fn test_grid_with_partial_pill_match_cleans_up_pill() {
-        let grid = Board {
+    fn test_board_with_partial_pill_match_cleans_up_pill() {
+        let board = Board {
             rows: 2,
             cols: 4,
             cells: vec![
@@ -530,8 +530,8 @@ mod tests {
                 Cell::Empty, Cell::Empty, 
                 Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below)), 
                 Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below))]};
-        let next_grid = grid.resolve(|a, b| a.color().is_some() && a.color() == b.color());
-        assert_eq!(next_grid.cells, 
+        let next_board = board.resolve(|a, b| a.color().is_some() && a.color() == b.color());
+        assert_eq!(next_board.cells, 
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, 
                 Cell::Pill(0, CellColor::BLUE, None), 
@@ -539,116 +539,116 @@ mod tests {
     }
 
     #[test]
-    fn test_moving_pill_in_empty_grid() {
-        let mut grid = Board {
+    fn test_moving_pill_in_empty_board() {
+        let mut board = Board {
             rows: 2,
             cols: 3,
             cells: vec![Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty],
         };
-        assert!(grid.move_pill((0, 0), (0, 1)));
+        assert!(board.move_pill((0, 0), (0, 1)));
         assert_eq!(
-            grid.cells, 
+            board.cells, 
             vec![Cell::Empty, Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty]);
-        assert!(grid.move_pill((0, 1), (1, 1)));
+        assert!(board.move_pill((0, 1), (1, 1)));
         assert_eq!(
-            grid.cells, 
+            board.cells, 
             vec![Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left))]);
-        assert!(grid.move_pill((1, 1), (1, 0)));
+        assert!(board.move_pill((1, 1), (1, 0)));
         assert_eq!(
-            grid.cells, 
+            board.cells, 
             vec![Cell::Empty, Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty]);
-        assert!(grid.move_pill((1, 0), (0, 0)));
+        assert!(board.move_pill((1, 0), (0, 0)));
         assert_eq!(
-            grid.cells, 
+            board.cells, 
             vec![Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty]);
     }
 
     #[test]
-    fn test_moving_pill_at_left_edge_of_grid() {
-        let mut grid = Board {
+    fn test_moving_pill_at_left_edge_of_board() {
+        let mut board = Board {
             rows: 2,
             cols: 4,
             cells: vec![Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty],
         };
-        assert!(!grid.move_pill((0, 1), (0, 0)));
+        assert!(!board.move_pill((0, 1), (0, 0)));
         assert_eq!(
-            grid.cells, 
+            board.cells, 
             vec![Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty]);
     }
 
     #[test]
-    fn test_moving_pill_at_right_edge_of_grid() {
-        let mut grid = Board {
+    fn test_moving_pill_at_right_edge_of_board() {
+        let mut board = Board {
             rows: 2,
             cols: 4,
             cells: vec![Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty],
         };
-        assert!(!grid.move_pill((0, 2), (0, 3)));
+        assert!(!board.move_pill((0, 2), (0, 3)));
         assert_eq!(
-            grid.cells, 
+            board.cells, 
             vec![Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left)), Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty]);
     }
 
     #[test]
     fn test_removing_piece_updates_left_connected_piece() {
-        let mut grid = Board {
+        let mut board = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left))],
         };
-        grid.remove_piece(1, 0);
+        board.remove_piece(1, 0);
         assert_eq!(
-            grid.cells, 
+            board.cells, 
             vec![Cell::Empty, Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, None)]);
     }
 
     #[test]
     fn test_removing_piece_updates_right_connected_piece() {
-        let mut grid = Board {
+        let mut board = Board {
             rows: 2,
             cols: 2,
             cells: vec![Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, Some(Orientation::Right)), Cell::Pill(0, CellColor::RED, Some(Orientation::Left))],
         };
-        grid.remove_piece(1, 1);
+        board.remove_piece(1, 1);
         assert_eq!(
-            grid.cells, 
+            board.cells, 
             vec![Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::RED, None), Cell::Empty]);
     }
 
     #[test]
-    fn test_rotating_pill_left_on_empty_grid() {
-        let mut grid = Board {
+    fn test_rotating_pill_left_on_empty_board() {
+        let mut board = Board {
             rows: 3,
             cols: 3,
             cells: vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
                 Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)), Cell::Empty,
                 Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below)), Cell::Empty]};
-        assert!(grid.rotate_pill((1, 1), Orientation::Left));
+        assert!(board.rotate_pill((1, 1), Orientation::Left));
         assert_eq!(
-            grid.cells,
+            board.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
                 Cell::Pill(0, CellColor::BLUE, Some(Orientation::Right)), Cell::Pill(0, CellColor::BLUE, Some(Orientation::Left)), Cell::Empty,
                 Cell::Empty, Cell::Empty, Cell::Empty]);
 
-        assert!(grid.rotate_pill((1, 1), Orientation::Left));
+        assert!(board.rotate_pill((1, 1), Orientation::Left));
         assert_eq!(
-            grid.cells,
+            board.cells,
             vec![
                 Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)), Cell::Empty,
                 Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below)), Cell::Empty,
                 Cell::Empty, Cell::Empty, Cell::Empty]);
-        assert!(grid.rotate_pill((1, 1), Orientation::Left));
+        assert!(board.rotate_pill((1, 1), Orientation::Left));
         assert_eq!(
-            grid.cells,
+            board.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
                 Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Right)), Cell::Pill(0, CellColor::BLUE, Some(Orientation::Left)),
                 Cell::Empty, Cell::Empty, Cell::Empty]);
-        assert!(grid.rotate_pill((1, 1), Orientation::Left));
+        assert!(board.rotate_pill((1, 1), Orientation::Left));
         assert_eq!(
-            grid.cells,
+            board.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
                 Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)), Cell::Empty,
@@ -656,39 +656,39 @@ mod tests {
     }
 
     #[test]
-    fn test_rotating_pill_right_on_empty_grid() {
-        let mut grid = Board {
+    fn test_rotating_pill_right_on_empty_board() {
+        let mut board = Board {
             rows: 3,
             cols: 3,
             cells: vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
                 Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)), Cell::Empty,
                 Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below)), Cell::Empty]};
-        assert!(grid.rotate_pill((1, 1), Orientation::Right));
+        assert!(board.rotate_pill((1, 1), Orientation::Right));
         assert_eq!(
-            grid.cells,
+            board.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
                 Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Right)), Cell::Pill(0, CellColor::BLUE, Some(Orientation::Left)),
                 Cell::Empty, Cell::Empty, Cell::Empty]);
 
-        assert!(grid.rotate_pill((1, 1), Orientation::Right));
+        assert!(board.rotate_pill((1, 1), Orientation::Right));
         assert_eq!(
-            grid.cells,
+            board.cells,
             vec![
                 Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)), Cell::Empty,
                 Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below)), Cell::Empty,
                 Cell::Empty, Cell::Empty, Cell::Empty]);
-        assert!(grid.rotate_pill((1, 1), Orientation::Right));
+        assert!(board.rotate_pill((1, 1), Orientation::Right));
         assert_eq!(
-            grid.cells,
+            board.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
                 Cell::Pill(0, CellColor::BLUE, Some(Orientation::Right)), Cell::Pill(0, CellColor::BLUE, Some(Orientation::Left)), Cell::Empty,
                 Cell::Empty, Cell::Empty, Cell::Empty]);
-        assert!(grid.rotate_pill((1, 1), Orientation::Right));
+        assert!(board.rotate_pill((1, 1), Orientation::Right));
         assert_eq!(
-            grid.cells,
+            board.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
                 Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)), Cell::Empty,
@@ -697,23 +697,23 @@ mod tests {
 
     #[test]
     fn test_rotating_pill_right_at_right_boundary() {
-        let mut grid = Board {
+        let mut board = Board {
             rows: 3,
             cols: 3,
             cells: vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
                 Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Right)), Cell::Pill(0, CellColor::BLUE, Some(Orientation::Left)),
                 Cell::Empty, Cell::Empty, Cell::Empty]};
-        assert!(grid.rotate_pill((1, 2), Orientation::Right));
+        assert!(board.rotate_pill((1, 2), Orientation::Right));
         assert_eq!(
-            grid.cells,
+            board.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
                 Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)),
                 Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below))]);
-        assert!(!grid.rotate_pill((1, 2), Orientation::Right));
+        assert!(!board.rotate_pill((1, 2), Orientation::Right));
         assert_eq!(
-            grid.cells,
+            board.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
                 Cell::Empty, Cell::Empty, Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)),
@@ -722,23 +722,23 @@ mod tests {
 
     #[test]
     fn test_rotating_pill_left_at_left_boundary() {
-        let mut grid = Board {
+        let mut board = Board {
             rows: 3,
             cols: 3,
             cells: vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
                 Cell::Pill(0, CellColor::BLUE, Some(Orientation::Right)), Cell::Pill(0, CellColor::BLUE, Some(Orientation::Left)), Cell::Empty,
                 Cell::Empty, Cell::Empty, Cell::Empty]};
-        assert!(grid.rotate_pill((1, 0), Orientation::Left));
+        assert!(board.rotate_pill((1, 0), Orientation::Left));
         assert_eq!(
-            grid.cells,
+            board.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
                 Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)), Cell::Empty, Cell::Empty, 
                 Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below)), Cell::Empty, Cell::Empty]);
-        assert!(!grid.rotate_pill((1, 0), Orientation::Left));
+        assert!(!board.rotate_pill((1, 0), Orientation::Left));
         assert_eq!(
-            grid.cells,
+            board.cells,
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty,
                 Cell::Pill(0, CellColor::BLUE, Some(Orientation::Above)), Cell::Empty, Cell::Empty, 
