@@ -359,6 +359,14 @@ impl<T: Clone + Copy + PartialEq> Board<T> {
         }
         false
     }
+
+    pub fn virus_count(&self) -> usize {
+        let mut count = 0;
+        for cell in self.cells.iter() {
+            if cell.is_virus() { count += 1; }
+        }
+        count
+    }
 }
 
 #[cfg(test)]

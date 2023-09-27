@@ -370,6 +370,12 @@ fn move_pills(
     if !pills_moved {
         if let Ok(ent) = control_query.get_single() {
             commands.entity(ent).remove::<Controllable>();
+            if let Ok((_, pos)) = query.get(ent) {
+                if pos.row >= GRID_ROWS - 1 {
+                    state.set(GameState::Finished);
+                    return
+                }
+            }
         }
         state.set(GameState::Resolving);
     }
@@ -391,6 +397,15 @@ fn adjust_fall_time(
         time.period = bevy::utils::Duration::from_secs_f32(0.2);
     } else if input.just_released(KeyCode::Down) {
         time.period = bevy::utils::Duration::from_secs_f32(1.);
+    }
+}
+
+fn check_for_game_over(
+    mut state: ResMut<NextState<GameState>>,
+    grid: Res<Board<Entity>>,
+) {
+    if grid.virus_count() < 1 {
+        state.set(GameState::Finished);
     }
 }
 
@@ -434,6 +449,7 @@ fn main() {
         .add_systems(OnEnter(GameState::PillDropping), spawn_pill)
         .add_systems(OnExit(GameState::PillDropping), reset_fall_time)
         .add_systems(OnEnter(GameState::Resolving), clear_matches)
+        .add_systems(OnExit(GameState::Resolving), check_for_game_over)
         .add_systems(
             Update, 
             (
