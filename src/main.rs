@@ -1,6 +1,6 @@
 use bevy::{
     prelude::*,
-    sprite::MaterialMesh2dBundle, core_pipeline::core_2d::graph::input
+    sprite::MaterialMesh2dBundle
 };
 use rand::{Rng, thread_rng};
 
@@ -65,7 +65,7 @@ fn spawn_viruses(
     query: Query<Entity, With<Board>>,
 ) {
     commands.entity(query.single()).with_children(|parent| {
-        for row in 0..GRID_ROWS {
+        for row in 0..GRID_ROWS-1 {
             for column in 0..GRID_COLS {
                 let random_value = thread_rng().gen_range(0..100);
                 match random_value {
