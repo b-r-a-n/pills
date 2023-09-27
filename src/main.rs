@@ -218,7 +218,7 @@ fn clear_matches(
         board.cells[i] = next_board.cells[i];
     }
     if cells_cleared {
-        state.set(GameState::PillsFalling);
+        state.set(GameState::PiecesFalling);
     } else {
         state.set(GameState::PillDropping);
     }
@@ -313,92 +313,80 @@ fn move_pill(
     }
 }
 
-fn move_pills(
-    mut commands: Commands,
+fn drop_pieces(
+    mut board: ResMut<Board<Entity>>,
+    mut query: Query<&mut BoardPosition, With<Pill>>,
     mut state: ResMut<NextState<GameState>>,
-    mut query: Query<(&mut Pill, &mut BoardPosition)>,
-    control_query: Query<Entity, (With<Pill>, With<Controllable>)>,
-    board: Res<Board<Entity>>,
 ) {
+
     let next_board = board.next();
-    let mut pills_moved = false;
-    for cell in board.cells.iter() {
-        match cell {
+    let mut piece_moved = false;
+    for i in 0..next_board.cells.len() {
+        match next_board.cells[i] {
             Cell::Pill(ent, _, _) => {
-
-                // The pill's pos before any movement
-                let maybe_pill = query.get_mut(*ent);
-                if maybe_pill.is_err() {
-                    // TODO: How do we get here?
-                    // I suspect that the board is updated with a command and this ran in the same frame
-                    // The fix may be to mutate the board resource directly
-                    // As is though, this may actually work
-                    continue;
-                }
-                let (_, mut pos) = maybe_pill.unwrap();
-
-                // Exit early if the pill is already at the bottom
-                if pos.row == 0 {
-                    continue;
-                }
-
-                // The same cell after movement
-                let (row, column) = (pos.row, pos.column);
-                let next_cell = next_board.get(row as usize, column as usize);
-                
-                // If the entity is not the same as the one in the next cell
-                // this means the pill in that cell is moving down
-                let mut move_down = false;
-                match next_cell {
-                    Cell::Pill(next_ent, _, _) => {
-                        if next_ent != *ent {
-                            move_down = true;
-                        }
-                    }
-                    _ => {
-                        move_down = true;
+                if let Ok(mut pos) = query.get_mut(ent) {
+                    if pos.row != (i / board.cols) as u8 {
+                        pos.row = (i / board.cols) as u8;
+                        piece_moved = true;
                     }
                 }
-
-                if move_down {
-                    pills_moved = true;
-                    pos.row -= 1;
-                }
-
             }
             _ => {}
         }
     }
-    if !pills_moved {
-        if let Ok(ent) = control_query.get_single() {
-            commands.entity(ent).remove::<Controllable>();
-            if let Ok((_, pos)) = query.get(ent) {
-                if pos.row >= BOARD_ROWS - 1 {
-                    state.set(GameState::Finished);
-                    return
-                }
-            }
-        }
+    if piece_moved {
+        *board = next_board;
+    } else {
         state.set(GameState::Resolving);
     }
-    commands.insert_resource(next_board);
+}
 
+fn drop_pill(
+    mut commands: Commands,
+    mut board: ResMut<Board<Entity>>,
+    mut query: Query<&mut BoardPosition, With<Pill>>,
+    mut state: ResMut<NextState<GameState>>,
+    control_query: Query<Entity, With<Controllable>>,
+) {
+    
+    let (entity, row, column) = {
+        let pivot_ent = control_query.single();
+        let pivot_pos = query.get(pivot_ent).unwrap();
+        (pivot_ent, pivot_pos.row as usize, pivot_pos.column as usize)
+    };
+    if row > 0 && board.move_pill((row, column), (row-1, column)) {
+        // Fixup the entities
+        if let (cell, Some((paired_cell, _, _ ))) = board.get_paired(row-1, column) {
+            cell.get().map(|ent| query.get_mut(ent).unwrap().row -= 1);
+            paired_cell.get().map(|ent| query.get_mut(ent).unwrap().row -= 1);
+        } else {
+            warn!("No paired cell found for pill at ({}, {})", row, column);
+        }
+    } else {
+        // TODO: This is where we can check for game over
+        commands.entity(entity).remove::<Controllable>();
+        state.set(GameState::Resolving);
+    }
 }
 
 fn reset_fall_time(
-    mut time: ResMut<FixedTime>,
+    mut commands: Commands,
 ) {
-    time.period = bevy::utils::Duration::from_secs(1);
+    commands.insert_resource(FixedTime::new_from_secs(0.3));
 }
 
-fn adjust_fall_time(
+fn reset_drop_time(
+    mut commands: Commands,
+) {
+    commands.insert_resource(FixedTime::new_from_secs(0.8));
+}
+
+fn adjust_drop_time(
     mut time: ResMut<FixedTime>,
     input: Res<Input<KeyCode>>,
 ) {
     if input.pressed(KeyCode::Down) {
-        time.period = bevy::utils::Duration::from_secs_f32(0.2);
-    } else if input.just_released(KeyCode::Down) {
-        time.period = bevy::utils::Duration::from_secs_f32(1.);
+        time.tick(core::time::Duration::from_secs_f32(0.1));
     }
 }
 
@@ -462,7 +450,7 @@ enum GameState {
     Starting,
     PillDropping,
     Resolving,
-    PillsFalling,
+    PiecesFalling,
     Finished,
 }
 
@@ -474,8 +462,8 @@ fn main() {
         .add_systems(PostStartup, startup_finished)
         .add_systems(OnEnter(GameState::Starting), start_game)
         .add_systems(OnExit(GameState::Starting), spawn_viruses)
-        .add_systems(OnEnter(GameState::PillDropping), spawn_pill)
-        .add_systems(OnExit(GameState::PillDropping), reset_fall_time)
+        .add_systems(OnEnter(GameState::PillDropping), (reset_drop_time, spawn_pill))
+        .add_systems(OnEnter(GameState::PiecesFalling), reset_fall_time)
         .add_systems(OnEnter(GameState::Resolving), clear_matches)
         .add_systems(OnExit(GameState::Resolving), check_for_game_over)
         .add_systems(OnExit(GameState::Finished), cleanup_game)
@@ -483,16 +471,14 @@ fn main() {
             Update, 
             (
                 add_sprites, 
-                (move_pill, rotate_pill, adjust_fall_time).run_if(in_state(GameState::PillDropping)),
+                (adjust_drop_time, move_pill, rotate_pill).run_if(in_state(GameState::PillDropping)),
                 reset_game.run_if(in_state(GameState::Finished)),
                 bevy::window::close_on_esc))
         .add_systems(
             FixedUpdate, 
             (
-                move_pills
-                    .run_if(in_state(GameState::PillDropping)
-                    .or_else(in_state(GameState::PillsFalling))),
-                ))
+                drop_pieces.run_if(in_state(GameState::PiecesFalling)),
+                drop_pill.run_if(in_state(GameState::PillDropping))))
         .insert_resource(FixedTime::new_from_secs(1.))
         .add_systems(PostUpdate, update_transforms.before(bevy::transform::TransformSystem::TransformPropagate))
         .run();
