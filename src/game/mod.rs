@@ -1,3 +1,3 @@
-pub use self::grid::*;
+pub use self::board::*;
 
-pub mod grid;
+pub mod board;

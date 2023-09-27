@@ -4,7 +4,7 @@ use bevy::{
 };
 use rand::{Rng, thread_rng};
 
-use crate::game::grid::*;
+use crate::game::board::*;
 
 mod game;
 
