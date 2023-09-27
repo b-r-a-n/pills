@@ -42,7 +42,7 @@ const CELL_SIZE: f32 = 32.0;
 const BOARD_ROWS: u8 = 16;
 const BOARD_COLS: u8 = 8;
 
-fn spawn_board(
+fn spawn_board_background(
     mut commands: Commands,
 ) {
     commands.spawn((
@@ -66,8 +66,10 @@ fn spawn_viruses(
 ) {
     commands.entity(query.single()).with_children(|parent| {
         for row in 0..BOARD_ROWS-1 {
+            // 3 is 100% for a virus, 300 is 1%
+            let upper = u32::pow(3, row as u32 + 1);
             for column in 0..BOARD_COLS {
-                let random_value = thread_rng().gen_range(0..100);
+                let random_value = thread_rng().gen_range(0..upper);
                 match random_value {
                     0..=2 => {
                         let color = match random_value {
@@ -409,6 +411,30 @@ fn check_for_game_over(
     }
 }
 
+fn cleanup_game(
+    mut commands: Commands,
+    query: Query<Entity, With<GameBoard>>,
+) {
+    for ent in query.iter() {
+        commands.entity(ent).despawn_descendants();
+    }
+}
+
+fn reset_game(
+    mut state: ResMut<NextState<GameState>>,
+    input: Res<Input<KeyCode>>,
+) {
+    if input.pressed(KeyCode::Return) {
+        state.set(GameState::Starting);
+    }
+}
+
+fn startup_finished(
+    mut state: ResMut<NextState<GameState>>
+) {
+    state.set(GameState::Starting);
+}
+
 /// Put components here
 /// 
 #[derive(Component)]
@@ -433,6 +459,7 @@ struct GameBoard;
 enum GameState {
     #[default]
     NotStarted,
+    Starting,
     PillDropping,
     Resolving,
     PillsFalling,
@@ -443,18 +470,21 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_state::<GameState>()
-        .add_systems(Startup, (setup_resources, setup_camera, spawn_board))
-        .add_systems(PostStartup, start_game)
-        .add_systems(OnExit(GameState::NotStarted), spawn_viruses)
+        .add_systems(Startup, (setup_resources, setup_camera, spawn_board_background))
+        .add_systems(PostStartup, startup_finished)
+        .add_systems(OnEnter(GameState::Starting), start_game)
+        .add_systems(OnExit(GameState::Starting), spawn_viruses)
         .add_systems(OnEnter(GameState::PillDropping), spawn_pill)
         .add_systems(OnExit(GameState::PillDropping), reset_fall_time)
         .add_systems(OnEnter(GameState::Resolving), clear_matches)
         .add_systems(OnExit(GameState::Resolving), check_for_game_over)
+        .add_systems(OnExit(GameState::Finished), cleanup_game)
         .add_systems(
             Update, 
             (
                 add_sprites, 
                 (move_pill, rotate_pill, adjust_fall_time).run_if(in_state(GameState::PillDropping)),
+                reset_game.run_if(in_state(GameState::Finished)),
                 bevy::window::close_on_esc))
         .add_systems(
             FixedUpdate, 
