@@ -61,9 +61,11 @@ fn spawn_board_background(
 fn spawn_viruses(
     mut commands: Commands,
     mut board: ResMut<Board<Entity>>,
+    max_viruses: Res<MaxViruses>,
     query: Query<Entity, With<GameBoard>>,
 ) {
     commands.entity(query.single()).with_children(|parent| {
+        let mut virus_count = max_viruses.0;
         for row in 0..(board.rows-1) as u8 {
             // 3 is 100% for a virus cell, 300 is 1%
             let upper = u32::pow(3, row as u32 + 1);
@@ -82,8 +84,12 @@ fn spawn_viruses(
                             BoardPosition { row, column },
                         )).id();
                         board.set(row as usize, column as usize, Cell::Virus(ent, color));
+                        virus_count -= 1;
                     },
                     _ => {}
+                }
+                if virus_count == 0 {
+                    return;
                 }
             }
         }
@@ -99,7 +105,38 @@ fn rand_color() -> CellColor {
     }
 }
 
+fn add_pill_to_board(
+    mut commands: Commands,
+    mut board: ResMut<Board<Entity>>,
+    pieces_query: Query<(Entity, &Pill, &NextPill), Without<BoardPosition>>,
+    board_query: Query<Entity, With<GameBoard>>,
+) {
+    let (row, col) = (board.rows-1, board.cols/2-1);
+    let board_ent = board_query.single();
+    for (ent, pill, pill_index) in pieces_query.iter() {
+        let col = col + pill_index.0 as usize;
+        let orientation = if pill_index.0 == 0 { Some(Orientation::Right) } else { Some(Orientation::Left) };
+        board.set(row, col, Cell::Pill(ent, pill.0, orientation));
+        commands.entity(ent)
+            .remove::<NextPill>()
+            .insert(BoardPosition { row: row as u8, column: col as u8 })
+            .set_parent(board_ent);
+        if pill_index.0 == 1 {
+            commands.entity(ent).insert(Controllable);
+        }
+    }
+}
+
 fn spawn_pill(
+    mut commands: Commands,
+) {
+    commands.spawn_batch([
+        (Pill(rand_color()), NextPill(0)),
+        (Pill(rand_color()), NextPill(1)),
+    ]);
+}
+
+fn _spawn_pill(
     mut commands: Commands,
     mut board: ResMut<Board<Entity>>,
     query: Query<Entity, With<GameBoard>>,
@@ -139,7 +176,7 @@ fn add_sprites(
     mesh_handles: Res<MeshHandles>,
     material_handles: Res<MaterialHandles>,
     mut virus_query: Query<(Entity, &Virus, &BoardPosition), Added<Virus>>,
-    mut pill_query: Query<(Entity, &Pill, &BoardPosition), Added<Pill>>,
+    mut pill_query: Query<(Entity, &Pill, Option<&BoardPosition>, Option<&NextPill>), Added<Pill>>,
 ) {
     for (entity, virus_type, board_position) in virus_query.iter_mut() {
         let (mesh, material) = match virus_type.0 {
@@ -158,7 +195,7 @@ fn add_sprites(
                 ..default() 
         });
     }
-    for (entity, pill_type, board_position) in pill_query.iter_mut() {
+    for (entity, pill_type, board_position, next_pill) in pill_query.iter_mut() {
         let (mesh, material) = match pill_type.0 {
             CellColor::RED => (mesh_handles.1.clone().into(), material_handles.0.clone()),
             CellColor::BLUE => (mesh_handles.1.clone().into(), material_handles.1.clone()),
@@ -167,11 +204,16 @@ fn add_sprites(
             CellColor::ORANGE => (mesh_handles.1.clone().into(), material_handles.0.clone()),
             CellColor::PURPLE => (mesh_handles.1.clone().into(), material_handles.0.clone()),
         };
+        let (x, y) = match (board_position, next_pill) {
+            (Some(pos), _) => (pos.column as f32 * CELL_SIZE, pos.row as f32 * CELL_SIZE),
+            (None, Some(next_index)) => (CELL_SIZE*(10.0 + next_index.0 as f32), 0.0),
+            _ => continue,
+        };
         commands.entity(entity)
             .insert(MaterialMesh2dBundle { 
                 mesh,
                 material, 
-                transform: Transform::from_translation(Vec3::new(board_position.column as f32 * CELL_SIZE, board_position.row as f32 * CELL_SIZE, 100.0)),
+                transform: Transform::from_translation(Vec3::new(x, y, 100.0)),
                 ..default() 
         });
     }
@@ -403,10 +445,14 @@ fn check_for_game_over(
 
 fn cleanup_game(
     mut commands: Commands,
-    query: Query<Entity, With<GameBoard>>,
+    board_query: Query<Entity, With<GameBoard>>,
+    next_pill: Query<Entity, With<NextPill>>,
 ) {
-    for ent in query.iter() {
+    for ent in board_query.iter() {
         commands.entity(ent).despawn_descendants();
+    }
+    for ent in next_pill.iter() {
+        commands.entity(ent).despawn_recursive();
     }
 }
 
@@ -440,10 +486,16 @@ struct Virus(CellColor);
 struct Pill(CellColor);
 
 #[derive(Component)]
+struct NextPill(u8);
+
+#[derive(Component)]
 struct Controllable;
 
 #[derive(Component)]
 struct GameBoard;
+
+#[derive(Resource)]
+struct MaxViruses(usize);
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
 enum GameState {
@@ -461,11 +513,12 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_state::<GameState>()
         .insert_resource(Board::<Entity>::new(16, 8))
+        .insert_resource(MaxViruses(2))
         .add_systems(Startup, (setup_resources, setup_camera, spawn_board_background))
         .add_systems(PostStartup, startup_finished)
         .add_systems(OnEnter(GameState::Starting), start_game)
-        .add_systems(OnExit(GameState::Starting), spawn_viruses)
-        .add_systems(OnEnter(GameState::PillDropping), (reset_drop_time, spawn_pill))
+        .add_systems(OnExit(GameState::Starting), (spawn_viruses, spawn_pill))
+        .add_systems(OnEnter(GameState::PillDropping), (reset_drop_time, add_pill_to_board.before(spawn_pill), spawn_pill))
         .add_systems(OnEnter(GameState::PiecesFalling), reset_fall_time)
         .add_systems(OnEnter(GameState::Resolving), clear_matches)
         .add_systems(OnExit(GameState::Resolving), check_for_game_over)
