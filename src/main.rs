@@ -39,17 +39,16 @@ fn setup_resources(
 }
 
 const CELL_SIZE: f32 = 32.0;
-const BOARD_ROWS: u8 = 16;
-const BOARD_COLS: u8 = 8;
 
 fn spawn_board_background(
     mut commands: Commands,
+    board: Res<Board<Entity>>,
 ) {
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
                 color: Color::BLACK,
-                custom_size: Some(Vec2::new(CELL_SIZE * BOARD_COLS as f32, CELL_SIZE * BOARD_ROWS as f32)),
+                custom_size: Some(Vec2::new(CELL_SIZE * board.cols as f32, CELL_SIZE * board.rows as f32)),
                 ..default()
             },
             transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
@@ -65,10 +64,10 @@ fn spawn_viruses(
     query: Query<Entity, With<GameBoard>>,
 ) {
     commands.entity(query.single()).with_children(|parent| {
-        for row in 0..BOARD_ROWS-1 {
-            // 3 is 100% for a virus, 300 is 1%
+        for row in 0..(board.rows-1) as u8 {
+            // 3 is 100% for a virus cell, 300 is 1%
             let upper = u32::pow(3, row as u32 + 1);
-            for column in 0..BOARD_COLS {
+            for column in 0..(board.cols as u8) {
                 let random_value = thread_rng().gen_range(0..upper);
                 match random_value {
                     0..=2 => {
@@ -106,27 +105,28 @@ fn spawn_pill(
     query: Query<Entity, With<GameBoard>>,
 ){
     commands.entity(query.single()).with_children(|parent| {
+        let (row, col) = (board.rows-1, board.cols/2-1);
         board.set(
-            (BOARD_ROWS-1) as usize, 
-            (BOARD_COLS/2-1) as usize, 
+            row,
+            col,
             {
                 let color = rand_color();
                 let ent = parent.spawn((
                     Pill(color),
-                    BoardPosition { row: BOARD_ROWS-1, column: BOARD_COLS/2-1 },
+                    BoardPosition {row: row as u8, column: col as u8},
                     Controllable,
                 )).id();
                 Cell::Pill(ent, color, Some(Orientation::Right))
             }
         );
         board.set(
-            (BOARD_ROWS-1) as usize,
-            (BOARD_COLS/2) as usize, 
+            row, 
+            col+1,
             {
                 let color = rand_color();
                 let ent = parent.spawn((
                     Pill(color),
-                    BoardPosition { row: BOARD_ROWS-1, column: BOARD_COLS/2 },
+                    BoardPosition { row: row as u8, column: col as u8 + 1 },
                 )).id();
                 Cell::Pill(ent, color, Some(Orientation::Left))
             }
@@ -179,10 +179,11 @@ fn add_sprites(
 
 fn update_transforms(
     mut query: Query<(&BoardPosition, &mut Transform), Changed<BoardPosition>>,
+    board: Res<Board<Entity>>,
 ) {
     for (board_position, mut transform) in query.iter_mut() {
-        transform.translation.x = (board_position.column as f32 * CELL_SIZE) - (CELL_SIZE * BOARD_COLS as f32) / 2.0 + CELL_SIZE / 2.0;
-        transform.translation.y = (board_position.row as f32 * CELL_SIZE) - (CELL_SIZE * BOARD_ROWS as f32) / 2.0 + CELL_SIZE / 2.0;
+        transform.translation.x = (board_position.column as f32 * CELL_SIZE) - (CELL_SIZE * board.cols as f32) / 2.0 + CELL_SIZE / 2.0;
+        transform.translation.y = (board_position.row as f32 * CELL_SIZE) - (CELL_SIZE * board.rows as f32) / 2.0 + CELL_SIZE / 2.0;
     }
 }
 
@@ -190,7 +191,8 @@ fn start_game(
     mut commands: Commands,
     mut state: ResMut<NextState<GameState>>,
 ) {
-    commands.insert_resource(Board::<Entity>::new(BOARD_ROWS as usize, BOARD_COLS as usize));
+    // TODO: The board size can come from some sort of config
+    commands.insert_resource(Board::<Entity>::new(16 as usize, 8 as usize));
     state.set(GameState::PillDropping);
 }
 
@@ -458,6 +460,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_state::<GameState>()
+        .insert_resource(Board::<Entity>::new(16, 8))
         .add_systems(Startup, (setup_resources, setup_camera, spawn_board_background))
         .add_systems(PostStartup, startup_finished)
         .add_systems(OnEnter(GameState::Starting), start_game)
