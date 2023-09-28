@@ -42,13 +42,14 @@ const CELL_SIZE: f32 = 32.0;
 
 fn spawn_board_background(
     mut commands: Commands,
-    board: Res<Board<Entity>>,
+    config: Res<GameConfig>,
 ) {
+    let (rows, cols) = config.board_size;
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
                 color: Color::BLACK,
-                custom_size: Some(Vec2::new(CELL_SIZE * board.cols as f32, CELL_SIZE * board.rows as f32)),
+                custom_size: Some(Vec2::new(CELL_SIZE * cols as f32, CELL_SIZE * rows as f32)),
                 ..default()
             },
             transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
@@ -61,15 +62,23 @@ fn spawn_board_background(
 fn spawn_viruses(
     mut commands: Commands,
     mut board: ResMut<Board<Entity>>,
-    max_viruses: Res<MaxViruses>,
+    config: Res<GameConfig>,
     query: Query<Entity, With<GameBoard>>,
 ) {
     commands.entity(query.single()).with_children(|parent| {
-        let mut virus_count = max_viruses.0;
+        let mut virus_count = config.max_viruses;
         for row in 0..(board.rows-1) as u8 {
             // 3 is 100% for a virus cell, 300 is 1%
-            let upper = u32::pow(3, row as u32 + 1);
-            for column in 0..(board.cols as u8) {
+            //let upper = u32::pow(3, row as u32 + 1);
+            let upper = 3 * (row as u32 + 1);
+            // This starts the generation from the middle and works outwards
+            let first_half = 0..(board.cols as u8)/2;
+            let second_half = (board.cols as u8)/2+1..(board.cols as u8);
+            let columns: Vec<u8> = first_half.rev()
+                .zip(second_half)
+                .collect::<Vec<_>>().iter()
+                .flat_map(|tup| std::iter::once(tup.0).chain(std::iter::once(tup.1))).collect();
+            for column in columns {
                 let random_value = thread_rng().gen_range(0..upper);
                 match random_value {
                     0..=2 => {
@@ -232,9 +241,10 @@ fn update_transforms(
 fn start_game(
     mut commands: Commands,
     mut state: ResMut<NextState<GameState>>,
+    config: Res<GameConfig>,
 ) {
-    // TODO: The board size can come from some sort of config
-    commands.insert_resource(Board::<Entity>::new(16 as usize, 8 as usize));
+    let (rows, cols) = config.board_size;
+    commands.insert_resource(Board::<Entity>::new(rows as usize, cols as usize));
     state.set(GameState::PillDropping);
 }
 
@@ -415,14 +425,16 @@ fn drop_pill(
 
 fn reset_fall_time(
     mut commands: Commands,
+    config: Res<GameConfig>,
 ) {
-    commands.insert_resource(FixedTime::new_from_secs(0.3));
+    commands.insert_resource(FixedTime::new_from_secs(config.fall_period));
 }
 
 fn reset_drop_time(
     mut commands: Commands,
+    config: Res<GameConfig>,
 ) {
-    commands.insert_resource(FixedTime::new_from_secs(0.8));
+    commands.insert_resource(FixedTime::new_from_secs(config.drop_period));
 }
 
 fn adjust_drop_time(
@@ -458,17 +470,96 @@ fn cleanup_game(
 
 fn reset_game(
     mut state: ResMut<NextState<GameState>>,
+    mut config: ResMut<GameConfig>,
     input: Res<Input<KeyCode>>,
 ) {
     if input.pressed(KeyCode::Return) {
+        config.max_viruses *= 2;
         state.set(GameState::Starting);
     }
 }
 
-fn startup_finished(
-    mut state: ResMut<NextState<GameState>>
+fn pause_game(
+    mut state: ResMut<NextState<AppState>>,
+    input: Res<Input<KeyCode>>,
 ) {
-    state.set(GameState::Starting);
+    if input.just_pressed(KeyCode::Space) {
+        state.set(AppState::Menu);
+    }
+}
+
+fn startup_finished(
+    mut game_state: ResMut<NextState<GameState>>,
+) {
+    game_state.set(GameState::Starting);
+}
+
+fn setup_menu(
+    mut commands: Commands
+) {
+    let button_entity = commands
+        .spawn(NodeBundle {
+            style: Style {
+                width: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()},
+            background_color: Color::BLACK.into(),
+            ..default()})
+        .with_children(|parent| {
+            parent.spawn(ButtonBundle {
+                style: Style {
+                    width: Val::Px(200.0),
+                    height: Val::Px(80.0),
+                    border: UiRect::all(Val::Px(2.0)),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                border_color: Color::WHITE.into(),
+                background_color: Color::BLACK.into(),
+                ..default()
+            })
+            .with_children(|parent| {
+                parent.spawn( TextBundle::from_section(
+                    "Play",
+                    TextStyle {
+                        font_size: 40.0,
+                        color: Color::WHITE.into(),
+                        ..default()
+                    }));
+                });
+            })
+            .id();
+    commands.insert_resource(MenuData { button_entity });
+
+}
+
+fn menu(
+    mut interaction_query: Query<(&Interaction, &mut BackgroundColor), (Changed<Interaction>, With<Button>)>,
+    mut app_state: ResMut<NextState<AppState>>,
+){
+    for (interaction, mut color) in &mut interaction_query {
+        match *interaction {
+            Interaction::Pressed => {
+                *color = Color::GREEN.into();
+                app_state.set(AppState::InGame);
+            },
+            Interaction::Hovered => {
+                *color = Color::YELLOW.into();
+            },
+            Interaction::None => {
+                *color = Color::BLACK.into();
+            },
+        }
+    }
+}
+
+fn cleanup_menu(
+    mut commands: Commands,
+    menu: Res<MenuData>,
+) {
+    commands.entity(menu.button_entity).despawn_recursive();
 }
 
 /// Put components here
@@ -495,7 +586,17 @@ struct Controllable;
 struct GameBoard;
 
 #[derive(Resource)]
-struct MaxViruses(usize);
+struct MenuData {
+    button_entity: Entity,
+}
+
+#[derive(Resource)]
+struct GameConfig {
+    board_size: (usize, usize),
+    max_viruses: usize,
+    drop_period: f32,
+    fall_period: f32,
+}
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
 enum GameState {
@@ -508,14 +609,28 @@ enum GameState {
     Finished,
 }
 
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
+enum AppState {
+    #[default]
+    Menu,
+    InGame,
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_state::<AppState>()
         .add_state::<GameState>()
-        .insert_resource(Board::<Entity>::new(16, 8))
-        .insert_resource(MaxViruses(2))
+        .insert_resource(GameConfig {
+            board_size: (16, 8),
+            max_viruses: 1,
+            drop_period: 0.6,
+            fall_period: 0.2,
+        })
         .add_systems(Startup, (setup_resources, setup_camera, spawn_board_background))
         .add_systems(PostStartup, startup_finished)
+        .add_systems(OnEnter(AppState::Menu), setup_menu)
+        .add_systems(OnExit(AppState::Menu), cleanup_menu)
         .add_systems(OnEnter(GameState::Starting), start_game)
         .add_systems(OnExit(GameState::Starting), (spawn_viruses, spawn_pill))
         .add_systems(OnEnter(GameState::PillDropping), (reset_drop_time, add_pill_to_board.before(spawn_pill), spawn_pill))
@@ -527,14 +642,25 @@ fn main() {
             Update, 
             (
                 add_sprites, 
-                (adjust_drop_time, move_pill, rotate_pill).run_if(in_state(GameState::PillDropping)),
-                reset_game.run_if(in_state(GameState::Finished)),
+                (adjust_drop_time, move_pill, rotate_pill)
+                    .run_if(in_state(AppState::InGame))
+                    .run_if(in_state(GameState::PillDropping)),
+                pause_game
+                    .run_if(in_state(AppState::InGame)),
+                reset_game
+                    .run_if(in_state(GameState::Finished)),
+                menu
+                    .run_if(in_state(AppState::Menu)),
                 bevy::window::close_on_esc))
         .add_systems(
             FixedUpdate, 
             (
-                drop_pieces.run_if(in_state(GameState::PiecesFalling)),
-                drop_pill.run_if(in_state(GameState::PillDropping))))
+                drop_pieces
+                    .run_if(in_state(GameState::PiecesFalling))
+                    .run_if(in_state(AppState::InGame)),
+                drop_pill
+                    .run_if(in_state(GameState::PillDropping)))
+                    .run_if(in_state(AppState::InGame)))
         .insert_resource(FixedTime::new_from_secs(1.))
         .add_systems(PostUpdate, update_transforms.before(bevy::transform::TransformSystem::TransformPropagate))
         .run();
