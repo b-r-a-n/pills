@@ -1,5 +1,5 @@
 use bevy::{
-    prelude::*,
+    prelude::{*, shape::Circle},
     sprite::MaterialMesh2dBundle
 };
 use rand::{Rng, thread_rng};
@@ -16,24 +16,49 @@ fn setup_camera(
     commands.spawn(Camera2dBundle::default());
 }
 
+const RED_COLOR : Color = Color::rgb(255.0/255.0, 115.0/255.0, 106.0/255.0);
+const YELLOW_COLOR : Color = Color::rgb(255.0/255.0, 213.0/255.0, 96.0/255.0);
+const BLUE_COLOR : Color = Color::rgb(0.0/255.0, 194.0/255.0, 215.0/255.0);
+
 #[derive(Resource)]
 struct MeshHandles(Handle<Mesh>, Handle<Mesh>);
 
 #[derive(Resource)]
 struct MaterialHandles(Handle<ColorMaterial>, Handle<ColorMaterial>, Handle<ColorMaterial>);
 
+#[derive(Resource, Deref, DerefMut)]
+struct AtlasHandles(Handle<TextureAtlas>);
+
+#[derive(Resource, Deref, DerefMut)]
+struct CircleTexture(Handle<Image>);
+
 fn setup_resources(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    asset_server: Res<AssetServer>,
 ) {
+    let texture_handle = asset_server.load("textures/viruses.png");
+    let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 1, 3, None, None);
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+    commands.insert_resource(AtlasHandles(texture_atlas_handle));
+
+    let circle_texture_handle: Handle<Image> = asset_server.load("textures/circle.png");
+    commands.insert_resource(CircleTexture(circle_texture_handle));
+
+    let move_sound_handle = asset_server.load("sounds/move.ogg");
+    let rotate_sound_handle = asset_server.load("sounds/rotate.ogg");
+    let pop_sound_handle = asset_server.load("sounds/pop.ogg");
+    commands.insert_resource(PillSounds { move_sound_handle, rotate_sound_handle, pop_sound_handle });
+
     let virus_mesh_handle = meshes.add(shape::RegularPolygon::new(CELL_SIZE/2.0, 6).into());
     let pill_mesh_handle = meshes.add(shape::Circle::new(CELL_SIZE/2.0).into());
     commands.insert_resource(MeshHandles(virus_mesh_handle, pill_mesh_handle));
 
-    let red_material = materials.add(Color::RED.into());
-    let blue_material = materials.add(Color::BLUE.into());
-    let yellow_material = materials.add(Color::YELLOW.into());
+    let red_material = materials.add(RED_COLOR.into());
+    let blue_material = materials.add(BLUE_COLOR.into());
+    let yellow_material = materials.add(YELLOW_COLOR.into());
     commands.insert_resource(MaterialHandles(red_material, blue_material, yellow_material));
 
 }
@@ -57,6 +82,7 @@ fn spawn_board_background(
         },
         GameBoard,
     ));
+
 }
 
 fn spawn_viruses(
@@ -184,23 +210,29 @@ fn add_sprites(
     mut commands: Commands,
     mesh_handles: Res<MeshHandles>,
     material_handles: Res<MaterialHandles>,
+    atlas_handles: Res<AtlasHandles>,
+    circle_texture_handle: Res<CircleTexture>,
     mut virus_query: Query<(Entity, &Virus, &BoardPosition), Added<Virus>>,
     mut pill_query: Query<(Entity, &Pill, Option<&BoardPosition>, Option<&NextPill>), Added<Pill>>,
+    cleared_query: Query<(Entity, &ClearedCell, &BoardPosition), Added<ClearedCell>>,
 ) {
     for (entity, virus_type, board_position) in virus_query.iter_mut() {
-        let (mesh, material) = match virus_type.0 {
-            CellColor::RED => (mesh_handles.0.clone().into(), material_handles.0.clone()),
-            CellColor::BLUE => (mesh_handles.0.clone().into(), material_handles.1.clone()),
-            CellColor::YELLOW => (mesh_handles.0.clone().into(), material_handles.2.clone()),
-            CellColor::GREEN => (mesh_handles.0.clone().into(), material_handles.0.clone()),
-            CellColor::ORANGE => (mesh_handles.0.clone().into(), material_handles.0.clone()),
-            CellColor::PURPLE => (mesh_handles.0.clone().into(), material_handles.0.clone()),
+        let (texture_atlas, sprite) = match virus_type.0 {
+            CellColor::RED => (atlas_handles.clone(), TextureAtlasSprite::new(1)),
+            CellColor::BLUE => (atlas_handles.clone(), TextureAtlasSprite::new(0)),
+            CellColor::YELLOW => (atlas_handles.clone(), TextureAtlasSprite::new(2)),
+            CellColor::GREEN => (atlas_handles.clone(), TextureAtlasSprite::new(2)),
+            CellColor::ORANGE => (atlas_handles.clone(), TextureAtlasSprite::new(2)),
+            CellColor::PURPLE => (atlas_handles.clone(), TextureAtlasSprite::new(1)),
         };
+        let transform = Transform::from_translation(
+            Vec3::new(board_position.column as f32 * CELL_SIZE, board_position.row as f32 * CELL_SIZE, 100.0))
+            .with_scale(Vec3::new(0.5, 0.5, 1.0));
         commands.entity(entity)
-            .insert(MaterialMesh2dBundle { 
-                mesh,
-                material, 
-                transform: Transform::from_translation(Vec3::new(board_position.column as f32 * CELL_SIZE, board_position.row as f32 * CELL_SIZE, 100.0)),
+            .insert(SpriteSheetBundle { 
+                texture_atlas,
+                sprite, 
+                transform,
                 ..default() 
         });
     }
@@ -226,6 +258,26 @@ fn add_sprites(
                 ..default() 
         });
     }
+    for (entity, cell, board_position) in &cleared_query {
+        let color = match cell.0 {
+            CellColor::RED => RED_COLOR,
+            CellColor::YELLOW => YELLOW_COLOR,
+            CellColor::BLUE => BLUE_COLOR,
+            CellColor::ORANGE => RED_COLOR,
+            CellColor::GREEN => YELLOW_COLOR,
+            CellColor::PURPLE => BLUE_COLOR,
+        };
+        let transform = Transform::from_translation(
+            Vec3::new(board_position.column as f32 * CELL_SIZE, board_position.row as f32 * CELL_SIZE, 100.0))
+            .with_scale(Vec3::new(0.5, 0.5, 1.0));
+        commands.entity(entity)
+            .insert(SpriteBundle {
+                sprite: Sprite { color, ..default()},
+                texture: circle_texture_handle.clone(),
+                transform,
+                ..default()
+            });
+    }
 }
 
 fn update_transforms(
@@ -248,22 +300,41 @@ fn start_game(
     state.set(GameState::PillDropping);
 }
 
+fn check_resolve_timer(
+    mut state: ResMut<NextState<GameState>>,
+    mut timer: ResMut<ResolveTimer>,
+    time: Res<Time>,
+) {
+    if timer.tick(time.delta()).just_finished() {
+        state.set(GameState::PiecesFalling);
+    }
+}
+
 fn clear_matches(
     mut commands: Commands,
     mut state: ResMut<NextState<GameState>>,
     mut board: ResMut<Board<Entity>>,
+    mut events: EventWriter<ClearEvent>,
 ) {
     let mut cells_cleared = false;
     let next_board = board.resolve(|lhs, rhs| lhs.color() == rhs.color());
     for i in 0..board.cells.len() {
         if next_board.cells[i] == Cell::Empty {
             match board.cells[i] {
-                Cell::Virus(ent, _) => {
+                Cell::Virus(ent, color) => {
                     commands.entity(ent).despawn_recursive();
+                    commands.spawn((
+                        BoardPosition { row: (i / board.cols) as u8, column: (i % board.cols) as u8 },
+                        ClearedCell(color),
+                    ));
                     cells_cleared = true;
                 }
-                Cell::Pill(ent, _, _) => {
+                Cell::Pill(ent, color, _) => {
                     commands.entity(ent).despawn_recursive();
+                    commands.spawn((
+                        BoardPosition { row: (i / board.cols) as u8, column: (i % board.cols) as u8 },
+                        ClearedCell(color),
+                    ));
                     cells_cleared = true;
                 }
                 _ => {}
@@ -272,16 +343,18 @@ fn clear_matches(
         board.cells[i] = next_board.cells[i];
     }
     if cells_cleared {
-        state.set(GameState::PiecesFalling);
+        events.send(ClearEvent);
     } else {
         state.set(GameState::PillDropping);
     }
+    commands.insert_resource(ResolveTimer(Timer::from_seconds(0.2, TimerMode::Once)));
 }
 
 fn rotate_pill(
     mut control_query: Query<&mut BoardPosition, (With<Pill>, With<Controllable>)>,
     mut query: Query<&mut BoardPosition, (With<Pill>, Without<Controllable>)>,
     mut board: ResMut<Board<Entity>>,
+    mut pill_moved_events: EventWriter<PillEvent>,
     input: Res<Input<KeyCode>>,
 ) {
     let from = { 
@@ -317,6 +390,7 @@ fn rotate_pill(
                 _ => {}
             }
         }
+        pill_moved_events.send(PillEvent::PillRotated);
     }
 }
 
@@ -370,6 +444,7 @@ fn move_pill(
     mut query: Query<&mut BoardPosition, (With<Pill>, Without<Controllable>)>,
     mut board: ResMut<Board<Entity>>,
     mut events: EventReader<MoveEvent>,
+    mut pill_moved_events: EventWriter<PillEvent>,
 ) {
     if events.len() < 1 { return }
     let from = { 
@@ -414,6 +489,8 @@ fn move_pill(
                 _ => {}
             }
         }
+
+        pill_moved_events.send(PillEvent::PillMoved);
     }
 }
 
@@ -481,6 +558,15 @@ fn check_for_game_over(
 ) {
     if board.virus_count() < 1 {
         state.set(GameState::Finished);
+    }
+}
+
+fn cleanup_cleared(
+    mut commands: Commands,
+    query: Query<Entity, With<ClearedCell>>,
+) {
+    for entity in &query {
+        commands.entity(entity).despawn_recursive();
     }
 }
 
@@ -591,6 +677,57 @@ fn cleanup_menu(
     commands.entity(menu.button_entity).despawn_recursive();
 }
 
+#[derive(Event)]
+enum PillEvent {
+    PillMoved,
+    PillRotated,
+}
+
+#[derive(Resource)]
+struct PillSounds{
+    move_sound_handle: Handle<AudioSource>, 
+    rotate_sound_handle: Handle<AudioSource>,
+    pop_sound_handle: Handle<AudioSource>,
+}
+
+fn play_pill_sound(
+    mut commands: Commands,
+    mut events: EventReader<PillEvent>,
+    sound_handles: Res<PillSounds>,
+) {
+    if events.is_empty() { return }
+    for event in events.iter() {
+        match event {
+            PillEvent::PillMoved => {
+                commands.spawn(AudioBundle {
+                    source: sound_handles.move_sound_handle.clone(),
+                    settings: PlaybackSettings::DESPAWN,
+                });
+            }
+            PillEvent::PillRotated =>  {
+                commands.spawn(AudioBundle {
+                    source: sound_handles.rotate_sound_handle.clone(),
+                    settings: PlaybackSettings::DESPAWN,
+                });
+            }
+        }
+    }
+    events.clear();
+}
+
+fn play_clear_sound(
+    mut commands: Commands,
+    mut events: EventReader<ClearEvent>,
+    sound_handles: Res<PillSounds>,
+) {
+    if events.is_empty() { return }
+    commands.spawn(AudioBundle {
+        source: sound_handles.pop_sound_handle.clone(),
+        settings: PlaybackSettings::DESPAWN,
+    });
+    events.clear();
+}
+
 /// Put components here
 /// 
 #[derive(Component)]
@@ -604,6 +741,9 @@ struct Virus(CellColor);
 
 #[derive(Component)]
 struct Pill(CellColor);
+
+#[derive(Component, Deref, DerefMut)]
+struct ClearedCell(CellColor);
 
 #[derive(Component)]
 struct NextPill(u8);
@@ -619,6 +759,9 @@ struct MovementTimer(Timer);
 
 #[derive(Resource, Deref, DerefMut)]
 struct DropTimer(Timer);
+
+#[derive(Resource, Deref, DerefMut)]
+struct ResolveTimer(Timer);
 
 #[derive(Resource)]
 struct MenuData {
@@ -641,6 +784,9 @@ enum MoveEvent {
 
 #[derive(Debug, Event)]
 struct DropEvent;
+
+#[derive(Debug, Event)]
+struct ClearEvent;
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
 enum GameState {
@@ -667,6 +813,8 @@ fn main() {
         .add_state::<GameState>()
         .add_event::<MoveEvent>()
         .add_event::<DropEvent>()
+        .add_event::<PillEvent>()
+        .add_event::<ClearEvent>()
         .insert_resource(GameConfig {
             board_size: (16, 8),
             max_viruses: 1,
@@ -676,7 +824,7 @@ fn main() {
         .insert_resource(MovementTimer(Timer::from_seconds(0.2, TimerMode::Repeating)))
         .insert_resource(DropTimer(Timer::from_seconds(0.8, TimerMode::Repeating)))
         .insert_resource(FixedTime::new_from_secs(0.2))
-        .add_systems(Startup, (setup_resources, setup_camera, spawn_board_background))
+        .add_systems(Startup, (setup_resources, setup_camera, spawn_board_background.after(setup_resources)))
         .add_systems(PostStartup, startup_finished)
         .add_systems(OnEnter(AppState::Menu), setup_menu)
         .add_systems(OnExit(AppState::Menu), cleanup_menu)
@@ -684,15 +832,17 @@ fn main() {
         .add_systems(OnExit(GameState::Starting), (spawn_viruses, spawn_pill))
         .add_systems(OnEnter(GameState::PillDropping), (add_pill_to_board.before(spawn_pill), spawn_pill))
         .add_systems(OnEnter(GameState::Resolving), clear_matches)
-        .add_systems(OnExit(GameState::Resolving), check_for_game_over)
+        .add_systems(OnExit(GameState::Resolving), (cleanup_cleared, check_for_game_over))
         .add_systems(OnExit(GameState::Finished), cleanup_game)
         .add_systems(
             Update, 
             (
                 add_sprites, 
-                (move_pill, rotate_pill, drop_pill, check_movement_input)
+                (move_pill, rotate_pill, drop_pill, check_movement_input, play_pill_sound)
                     .run_if(in_state(AppState::InGame))
                     .run_if(in_state(GameState::PillDropping)),
+                (play_clear_sound, check_resolve_timer)
+                    .run_if(in_state(GameState::Resolving)),
                 pause_game
                     .run_if(in_state(AppState::InGame)),
                 reset_game
