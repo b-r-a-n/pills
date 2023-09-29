@@ -320,27 +320,61 @@ fn rotate_pill(
     }
 }
 
+fn check_movement_input(
+    input: Res<Input<KeyCode>>,
+    time: Res<Time>,
+    mut timer: ResMut<MovementTimer>,
+    mut events: EventWriter<MoveEvent>,
+) {
+    if input.just_pressed(KeyCode::Left) || input.just_pressed(KeyCode::Right) {
+        timer.reset();
+        // Fire the event
+        if input.just_pressed(KeyCode::Left) {
+            events.send(MoveEvent::Left);
+        }
+        if input.just_pressed(KeyCode::Right) {
+            events.send(MoveEvent::Right);
+        }
+    } else if input.pressed(KeyCode::Left) || input.pressed(KeyCode::Right) {
+        timer.tick(time.delta());
+        if timer.just_finished() {
+            // Fire the event
+            if input.pressed(KeyCode::Left) {
+                events.send(MoveEvent::Left);
+            }
+            if input.pressed(KeyCode::Right) {
+                events.send(MoveEvent::Right);
+            }
+        }
+    }
+}
+
 fn move_pill(
     mut control_query: Query<&mut BoardPosition, (With<Pill>, With<Controllable>)>,
     mut query: Query<&mut BoardPosition, (With<Pill>, Without<Controllable>)>,
     mut board: ResMut<Board<Entity>>,
-    input: Res<Input<KeyCode>>,
+    mut events: EventReader<MoveEvent>,
 ) {
+    if events.len() < 1 { return }
     let from = { 
         if let Ok(pos) = control_query.get_single() {
             (pos.row as usize, pos.column as usize) 
         } else { return }
     };
-    let to = { 
+    let to = {
         let mut pos = from;
-        if input.just_pressed(KeyCode::Left) {
-            if pos.1 > 0 {
-                pos.1 -= 1;
-            }
-        }
-        if input.just_pressed(KeyCode::Right) {
-            if pos.1 < board.cols - 1 {
-                pos.1 += 1;
+        for event in events.iter() {
+            match event {
+                MoveEvent::Left => {
+                    if pos.1 > 0 {
+                        pos.1 -= 1;
+                    }
+                },
+                MoveEvent::Right => {
+                    if pos.1 < board.cols - 1 {
+                        pos.1 += 1;
+                    }
+                },
             }
         }
         pos
@@ -585,6 +619,9 @@ struct Controllable;
 #[derive(Component)]
 struct GameBoard;
 
+#[derive(Resource, Deref, DerefMut)]
+struct MovementTimer(Timer);
+
 #[derive(Resource)]
 struct MenuData {
     button_entity: Entity,
@@ -596,6 +633,12 @@ struct GameConfig {
     max_viruses: usize,
     drop_period: f32,
     fall_period: f32,
+}
+
+#[derive(Debug, Event)]
+enum MoveEvent {
+    Left,
+    Right,
 }
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
@@ -621,12 +664,14 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_state::<AppState>()
         .add_state::<GameState>()
+        .add_event::<MoveEvent>()
         .insert_resource(GameConfig {
             board_size: (16, 8),
             max_viruses: 1,
             drop_period: 0.6,
             fall_period: 0.2,
         })
+        .insert_resource(MovementTimer(Timer::from_seconds(0.2, TimerMode::Repeating)))
         .add_systems(Startup, (setup_resources, setup_camera, spawn_board_background))
         .add_systems(PostStartup, startup_finished)
         .add_systems(OnEnter(AppState::Menu), setup_menu)
@@ -642,7 +687,7 @@ fn main() {
             Update, 
             (
                 add_sprites, 
-                (adjust_drop_time, move_pill, rotate_pill)
+                (adjust_drop_time, move_pill, rotate_pill, check_movement_input)
                     .run_if(in_state(AppState::InGame))
                     .run_if(in_state(GameState::PillDropping)),
                 pause_game
