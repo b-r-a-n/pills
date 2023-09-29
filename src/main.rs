@@ -323,29 +323,45 @@ fn rotate_pill(
 fn check_movement_input(
     input: Res<Input<KeyCode>>,
     time: Res<Time>,
-    mut timer: ResMut<MovementTimer>,
-    mut events: EventWriter<MoveEvent>,
+    mut move_timer: ResMut<MovementTimer>,
+    mut move_events: EventWriter<MoveEvent>,
+    mut drop_timer: ResMut<DropTimer>,
+    mut drop_events: EventWriter<DropEvent>,
 ) {
     if input.just_pressed(KeyCode::Left) || input.just_pressed(KeyCode::Right) {
-        timer.reset();
-        // Fire the event
+        move_timer.reset();
         if input.just_pressed(KeyCode::Left) {
-            events.send(MoveEvent::Left);
+            move_events.send(MoveEvent::Left);
         }
         if input.just_pressed(KeyCode::Right) {
-            events.send(MoveEvent::Right);
+            move_events.send(MoveEvent::Right);
         }
     } else if input.pressed(KeyCode::Left) || input.pressed(KeyCode::Right) {
-        timer.tick(time.delta());
-        if timer.just_finished() {
+        move_timer.tick(time.delta());
+        if move_timer.just_finished() {
             // Fire the event
             if input.pressed(KeyCode::Left) {
-                events.send(MoveEvent::Left);
+                move_events.send(MoveEvent::Left);
             }
             if input.pressed(KeyCode::Right) {
-                events.send(MoveEvent::Right);
+                move_events.send(MoveEvent::Right);
             }
         }
+    }
+
+    drop_timer.tick(time.delta());
+    if input.just_pressed(KeyCode::Down) {
+        drop_timer.reset();
+        drop_events.send(DropEvent);
+    } else if input.pressed(KeyCode::Down) {
+        if drop_timer.just_finished() {
+            drop_events.send(DropEvent);
+            drop_timer.reset();
+        }
+        drop_timer.tick(core::time::Duration::from_secs_f32(0.1));
+    }
+    if drop_timer.just_finished() {
+        drop_events.send(DropEvent);
     }
 }
 
@@ -435,8 +451,10 @@ fn drop_pill(
     mut query: Query<&mut BoardPosition, With<Pill>>,
     mut state: ResMut<NextState<GameState>>,
     control_query: Query<Entity, With<Controllable>>,
-) {
-    
+    mut drop_events: EventReader<DropEvent>,
+) { 
+    if drop_events.len() < 1 { return }
+    drop_events.clear();
     let (entity, row, column) = {
         let pivot_ent = control_query.single();
         let pivot_pos = query.get(pivot_ent).unwrap();
@@ -454,29 +472,6 @@ fn drop_pill(
         // TODO: This is where we can check for game over
         commands.entity(entity).remove::<Controllable>();
         state.set(GameState::Resolving);
-    }
-}
-
-fn reset_fall_time(
-    mut commands: Commands,
-    config: Res<GameConfig>,
-) {
-    commands.insert_resource(FixedTime::new_from_secs(config.fall_period));
-}
-
-fn reset_drop_time(
-    mut commands: Commands,
-    config: Res<GameConfig>,
-) {
-    commands.insert_resource(FixedTime::new_from_secs(config.drop_period));
-}
-
-fn adjust_drop_time(
-    mut time: ResMut<FixedTime>,
-    input: Res<Input<KeyCode>>,
-) {
-    if input.pressed(KeyCode::Down) {
-        time.tick(core::time::Duration::from_secs_f32(0.1));
     }
 }
 
@@ -622,6 +617,9 @@ struct GameBoard;
 #[derive(Resource, Deref, DerefMut)]
 struct MovementTimer(Timer);
 
+#[derive(Resource, Deref, DerefMut)]
+struct DropTimer(Timer);
+
 #[derive(Resource)]
 struct MenuData {
     button_entity: Entity,
@@ -640,6 +638,9 @@ enum MoveEvent {
     Left,
     Right,
 }
+
+#[derive(Debug, Event)]
+struct DropEvent;
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
 enum GameState {
@@ -665,6 +666,7 @@ fn main() {
         .add_state::<AppState>()
         .add_state::<GameState>()
         .add_event::<MoveEvent>()
+        .add_event::<DropEvent>()
         .insert_resource(GameConfig {
             board_size: (16, 8),
             max_viruses: 1,
@@ -672,14 +674,15 @@ fn main() {
             fall_period: 0.2,
         })
         .insert_resource(MovementTimer(Timer::from_seconds(0.2, TimerMode::Repeating)))
+        .insert_resource(DropTimer(Timer::from_seconds(0.8, TimerMode::Repeating)))
+        .insert_resource(FixedTime::new_from_secs(0.2))
         .add_systems(Startup, (setup_resources, setup_camera, spawn_board_background))
         .add_systems(PostStartup, startup_finished)
         .add_systems(OnEnter(AppState::Menu), setup_menu)
         .add_systems(OnExit(AppState::Menu), cleanup_menu)
         .add_systems(OnEnter(GameState::Starting), start_game)
         .add_systems(OnExit(GameState::Starting), (spawn_viruses, spawn_pill))
-        .add_systems(OnEnter(GameState::PillDropping), (reset_drop_time, add_pill_to_board.before(spawn_pill), spawn_pill))
-        .add_systems(OnEnter(GameState::PiecesFalling), reset_fall_time)
+        .add_systems(OnEnter(GameState::PillDropping), (add_pill_to_board.before(spawn_pill), spawn_pill))
         .add_systems(OnEnter(GameState::Resolving), clear_matches)
         .add_systems(OnExit(GameState::Resolving), check_for_game_over)
         .add_systems(OnExit(GameState::Finished), cleanup_game)
@@ -687,7 +690,7 @@ fn main() {
             Update, 
             (
                 add_sprites, 
-                (adjust_drop_time, move_pill, rotate_pill, check_movement_input)
+                (move_pill, rotate_pill, drop_pill, check_movement_input)
                     .run_if(in_state(AppState::InGame))
                     .run_if(in_state(GameState::PillDropping)),
                 pause_game
@@ -699,14 +702,9 @@ fn main() {
                 bevy::window::close_on_esc))
         .add_systems(
             FixedUpdate, 
-            (
-                drop_pieces
+            drop_pieces
                     .run_if(in_state(GameState::PiecesFalling))
-                    .run_if(in_state(AppState::InGame)),
-                drop_pill
-                    .run_if(in_state(GameState::PillDropping)))
                     .run_if(in_state(AppState::InGame)))
-        .insert_resource(FixedTime::new_from_secs(1.))
         .add_systems(PostUpdate, update_transforms.before(bevy::transform::TransformSystem::TransformPropagate))
         .run();
 }
