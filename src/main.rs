@@ -1,5 +1,5 @@
 use bevy::{
-    prelude::{*, shape::Circle},
+    prelude::*,
     sprite::MaterialMesh2dBundle
 };
 use rand::{Rng, thread_rng};
@@ -143,6 +143,7 @@ fn rand_color() -> CellColor {
 fn add_pill_to_board(
     mut commands: Commands,
     mut board: ResMut<Board<Entity>>,
+    mut events: EventWriter<GameResult>,
     pieces_query: Query<(Entity, &Pill, &NextPill), Without<BoardPosition>>,
     board_query: Query<Entity, With<GameBoard>>,
 ) {
@@ -151,6 +152,10 @@ fn add_pill_to_board(
     for (ent, pill, pill_index) in pieces_query.iter() {
         let col = col + pill_index.0 as usize;
         let orientation = if pill_index.0 == 0 { Some(Orientation::Right) } else { Some(Orientation::Left) };
+        if board.get(row, col) != Cell::Empty {
+            events.send(GameResult::Loss);
+            return;
+        }
         board.set(row, col, Cell::Pill(ent, pill.0, orientation));
         commands.entity(ent)
             .remove::<NextPill>()
@@ -513,12 +518,44 @@ fn drop_pill(
 }
 
 fn check_for_game_over(
-    mut state: ResMut<NextState<GameState>>,
+    mut event: EventWriter<GameResult>,
     board: Res<Board<Entity>>,
 ) {
     if board.virus_count() < 1 {
-        state.set(GameState::Finished);
+        event.send(GameResult::Win);
     }
+}
+
+fn handle_game_result(
+    mut commands: Commands,
+    mut game_state: ResMut<NextState<GameState>>,
+    mut event: EventReader<GameResult>,
+) {
+    if event.is_empty() { return }
+    match event.iter().next().unwrap() {
+        GameResult::Loss => {
+            commands.spawn(MenuTitle::GameOver);
+            commands.spawn_batch([
+                (MenuOption::Play),
+                (MenuOption::Exit)
+            ]);
+            
+        },
+        GameResult::Win => {
+            commands.spawn(MenuTitle::Victory);
+            commands.spawn_batch([
+                (MenuOption::NextLevel),
+                (MenuOption::Exit)
+            ]);
+        },
+    }
+    game_state.set(GameState::Finished);
+}
+
+fn handle_finished(
+    mut app_state: ResMut<NextState<AppState>>,
+) {
+    app_state.set(AppState::Menu);
 }
 
 fn cleanup_cleared(
@@ -543,87 +580,144 @@ fn cleanup_game(
     }
 }
 
-fn reset_game(
-    mut state: ResMut<NextState<GameState>>,
-    mut config: ResMut<GameConfig>,
-    input: Res<Input<KeyCode>>,
-) {
-    if input.pressed(KeyCode::Return) {
-        config.max_viruses *= 2;
-        state.set(GameState::Starting);
-    }
-}
-
 fn pause_game(
+    mut commands: Commands,
     mut state: ResMut<NextState<AppState>>,
     input: Res<Input<KeyCode>>,
 ) {
     if input.just_pressed(KeyCode::Space) {
+        commands.spawn(MenuOption::Play);
         state.set(AppState::Menu);
     }
 }
 
 fn startup_finished(
+    mut commands: Commands,
     mut game_state: ResMut<NextState<GameState>>,
 ) {
+    commands.spawn_batch([
+        (MenuOption::Play),
+        (MenuOption::Exit),
+    ]);
     game_state.set(GameState::Starting);
 }
 
+#[derive(Component)]
+enum MenuOption {
+    Play,
+    NextLevel,
+    Exit,
+}
+
+#[derive(Component)]
+enum MenuTitle {
+    GameOver,
+    Victory,
+}
+
+impl Into<String> for &MenuOption {
+    fn into(self) -> String {
+        match self {
+            MenuOption::Play => "Play".to_string(),
+            MenuOption::NextLevel => "Next Level".to_string(),
+            MenuOption::Exit => "Exit".to_string(),
+        }
+    }
+}
+
 fn setup_menu(
-    mut commands: Commands
+    mut commands: Commands,
+    query: Query<(Entity, &MenuOption)>,
+    title_query: Query<(Entity, &MenuTitle)>,
 ) {
     let button_entity = commands
         .spawn(NodeBundle {
             style: Style {
                 width: Val::Percent(100.0),
+                flex_direction: FlexDirection::Column,
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 ..default()},
             background_color: Color::BLACK.into(),
             ..default()})
-        .with_children(|parent| {
-            parent.spawn(ButtonBundle {
-                style: Style {
-                    width: Val::Px(200.0),
-                    height: Val::Px(80.0),
-                    border: UiRect::all(Val::Px(2.0)),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
+        .id();
+    if let Ok((entity, title)) = title_query.get_single() {
+        commands.entity(entity).insert(
+            TextBundle::from_section(
+                match title { MenuTitle::GameOver => "Game Over", MenuTitle::Victory => "Victory"},
+                TextStyle {
+                    font_size: 80.0,
+                    color: Color::WHITE.into(),
                     ..default()
-                },
-                border_color: Color::WHITE.into(),
-                background_color: Color::BLACK.into(),
+                }))
+            .set_parent(button_entity);
+    }
+    for (entity, option) in &query {
+        commands.entity(entity).insert(ButtonBundle {
+            style: Style {
+                width: Val::Px(200.0),
+                height: Val::Px(80.0),
+                border: UiRect::all(Val::Px(2.0)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
                 ..default()
+            },
+            border_color: Color::WHITE.into(),
+            background_color: Color::BLACK.into(),
+            ..default()
+        })
+        .with_children(|parent| {
+            parent.spawn( TextBundle::from_section(
+                option,
+                TextStyle {
+                    font_size: 40.0,
+                    color: Color::WHITE.into(),
+                    ..default()
+                }));
             })
-            .with_children(|parent| {
-                parent.spawn( TextBundle::from_section(
-                    "Play",
-                    TextStyle {
-                        font_size: 40.0,
-                        color: Color::WHITE.into(),
-                        ..default()
-                    }));
-                });
-            })
-            .id();
+        .set_parent(button_entity);
+    }
     commands.insert_resource(MenuData { button_entity });
 
 }
 
 fn menu(
-    mut interaction_query: Query<(&Interaction, &mut BackgroundColor), (Changed<Interaction>, With<Button>)>,
+    mut commands: Commands,
+    mut interaction_query: Query<(&Interaction, &MenuOption, &mut BackgroundColor), (Changed<Interaction>, With<Button>)>,
     mut app_state: ResMut<NextState<AppState>>,
+    curr_game_state: Res<State<GameState>>,
+    mut game_state: ResMut<NextState<GameState>>,
+    mut config: ResMut<GameConfig>,
+    focused_windows: Query<(Entity, &Window)>,
 ){
-    for (interaction, mut color) in &mut interaction_query {
-        match *interaction {
-            Interaction::Pressed => {
+    for (interaction, option, mut color) in &mut interaction_query {
+        match (interaction, option) {
+            (Interaction::Pressed, MenuOption::Play) => {
                 *color = Color::GREEN.into();
+                if curr_game_state.get() == &GameState::Finished {
+                    game_state.set(GameState::Starting);
+                }
                 app_state.set(AppState::InGame);
             },
-            Interaction::Hovered => {
+            (Interaction::Pressed, MenuOption::NextLevel) => {
+                *color = Color::GREEN.into();
+                config.max_viruses *= 2;
+                game_state.set(GameState::Starting);
+                app_state.set(AppState::InGame);
+            },
+            (Interaction::Pressed, MenuOption::Exit) => {
+                *color = Color::GREEN.into();
+                for (window, focus) in focused_windows.iter() {
+                    if !focus.focused {
+                        continue;
+                    }
+                    commands.entity(window).despawn();
+                }
+            },
+            (Interaction::Hovered, _) => {
                 *color = Color::YELLOW.into();
             },
-            Interaction::None => {
+            (Interaction::None, _) => {
                 *color = Color::BLACK.into();
             },
         }
@@ -748,6 +842,9 @@ struct DropEvent;
 #[derive(Debug, Event)]
 struct ClearEvent;
 
+#[derive(Event)]
+enum GameResult { Loss, Win }
+
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
 enum GameState {
     #[default]
@@ -775,6 +872,7 @@ fn main() {
         .add_event::<DropEvent>()
         .add_event::<PillEvent>()
         .add_event::<ClearEvent>()
+        .add_event::<GameResult>()
         .insert_resource(GameConfig {
             board_size: (16, 8),
             max_viruses: 1,
@@ -793,11 +891,13 @@ fn main() {
         .add_systems(OnEnter(GameState::PillDropping), (add_pill_to_board.before(spawn_pill), spawn_pill))
         .add_systems(OnEnter(GameState::Resolving), clear_matches)
         .add_systems(OnExit(GameState::Resolving), (cleanup_cleared, check_for_game_over))
+        .add_systems(OnEnter(GameState::Finished), handle_finished)
         .add_systems(OnExit(GameState::Finished), cleanup_game)
         .add_systems(
             Update, 
             (
                 add_sprites, 
+                handle_game_result,
                 (move_pill, rotate_pill, drop_pill, check_movement_input, play_pill_sound)
                     .run_if(in_state(AppState::InGame))
                     .run_if(in_state(GameState::PillDropping)),
@@ -805,8 +905,6 @@ fn main() {
                     .run_if(in_state(GameState::Resolving)),
                 pause_game
                     .run_if(in_state(AppState::InGame)),
-                reset_game
-                    .run_if(in_state(GameState::Finished)),
                 menu
                     .run_if(in_state(AppState::Menu)),
                 bevy::window::close_on_esc))
