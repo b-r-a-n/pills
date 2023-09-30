@@ -171,52 +171,17 @@ fn spawn_pill(
     ]);
 }
 
-fn _spawn_pill(
-    mut commands: Commands,
-    mut board: ResMut<Board<Entity>>,
-    query: Query<Entity, With<GameBoard>>,
-){
-    commands.entity(query.single()).with_children(|parent| {
-        let (row, col) = (board.rows-1, board.cols/2-1);
-        board.set(
-            row,
-            col,
-            {
-                let color = rand_color();
-                let ent = parent.spawn((
-                    Pill(color),
-                    BoardPosition {row: row as u8, column: col as u8},
-                    Controllable,
-                )).id();
-                Cell::Pill(ent, color, Some(Orientation::Right))
-            }
-        );
-        board.set(
-            row, 
-            col+1,
-            {
-                let color = rand_color();
-                let ent = parent.spawn((
-                    Pill(color),
-                    BoardPosition { row: row as u8, column: col as u8 + 1 },
-                )).id();
-                Cell::Pill(ent, color, Some(Orientation::Left))
-            }
-        );
-    });
-}
-
 fn add_sprites(
     mut commands: Commands,
     mesh_handles: Res<MeshHandles>,
     material_handles: Res<MaterialHandles>,
     atlas_handles: Res<AtlasHandles>,
     circle_texture_handle: Res<CircleTexture>,
-    mut virus_query: Query<(Entity, &Virus, &BoardPosition), Added<Virus>>,
+    mut virus_query: Query<(Entity, &Virus), (Added<Virus>, With<BoardPosition>)>,
     mut pill_query: Query<(Entity, &Pill, Option<&BoardPosition>, Option<&NextPill>), Added<Pill>>,
-    cleared_query: Query<(Entity, &ClearedCell, &BoardPosition), Added<ClearedCell>>,
+    cleared_query: Query<(Entity, &ClearedCell), (Added<ClearedCell>, With<BoardPosition>)>,
 ) {
-    for (entity, virus_type, board_position) in virus_query.iter_mut() {
+    for (entity, virus_type) in virus_query.iter_mut() {
         let (texture_atlas, sprite) = match virus_type.0 {
             CellColor::RED => (atlas_handles.clone(), TextureAtlasSprite::new(1)),
             CellColor::BLUE => (atlas_handles.clone(), TextureAtlasSprite::new(0)),
@@ -225,9 +190,7 @@ fn add_sprites(
             CellColor::ORANGE => (atlas_handles.clone(), TextureAtlasSprite::new(2)),
             CellColor::PURPLE => (atlas_handles.clone(), TextureAtlasSprite::new(1)),
         };
-        let transform = Transform::from_translation(
-            Vec3::new(board_position.column as f32 * CELL_SIZE, board_position.row as f32 * CELL_SIZE, 100.0))
-            .with_scale(Vec3::new(0.5, 0.5, 1.0));
+        let transform = Transform::default().with_scale(Vec3::new(0.5, 0.5, 1.0));
         commands.entity(entity)
             .insert(SpriteSheetBundle { 
                 texture_atlas,
@@ -258,7 +221,7 @@ fn add_sprites(
                 ..default() 
         });
     }
-    for (entity, cell, board_position) in &cleared_query {
+    for (entity, cell) in &cleared_query {
         let color = match cell.0 {
             CellColor::RED => RED_COLOR,
             CellColor::YELLOW => YELLOW_COLOR,
@@ -267,21 +230,18 @@ fn add_sprites(
             CellColor::GREEN => YELLOW_COLOR,
             CellColor::PURPLE => BLUE_COLOR,
         };
-        let transform = Transform::from_translation(
-            Vec3::new(board_position.column as f32 * CELL_SIZE, board_position.row as f32 * CELL_SIZE, 100.0))
-            .with_scale(Vec3::new(0.5, 0.5, 1.0));
         commands.entity(entity)
             .insert(SpriteBundle {
                 sprite: Sprite { color, ..default()},
                 texture: circle_texture_handle.clone(),
-                transform,
+                transform: Transform::default().with_scale(Vec3::new(0.5, 0.5, 1.0)),
                 ..default()
             });
     }
 }
 
 fn update_transforms(
-    mut query: Query<(&BoardPosition, &mut Transform), Changed<BoardPosition>>,
+    mut query: Query<(&BoardPosition, &mut Transform), Or<(Added<BoardPosition>, Changed<BoardPosition>)>>,
     board: Res<Board<Entity>>,
 ) {
     for (board_position, mut transform) in query.iter_mut() {
