@@ -62,6 +62,13 @@ impl<T: Clone + Copy + PartialEq> Cell<T> {
             _ => false,
         }
     }
+
+    pub fn get_orientation(&self) -> Option<Orientation> {
+        match self {
+            Cell::Pill(_, _, Some(o)) => Some(*o),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Default, Resource)]

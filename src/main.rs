@@ -1,7 +1,4 @@
-use bevy::{
-    prelude::*,
-    sprite::MaterialMesh2dBundle
-};
+use bevy::prelude::*;
 use rand::{Rng, thread_rng};
 
 use crate::game::board::*;
@@ -20,47 +17,23 @@ const RED_COLOR : Color = Color::rgb(255.0/255.0, 115.0/255.0, 106.0/255.0);
 const YELLOW_COLOR : Color = Color::rgb(255.0/255.0, 213.0/255.0, 96.0/255.0);
 const BLUE_COLOR : Color = Color::rgb(0.0/255.0, 194.0/255.0, 215.0/255.0);
 
-#[derive(Resource)]
-struct MeshHandles(Handle<Mesh>, Handle<Mesh>);
-
-#[derive(Resource)]
-struct MaterialHandles(Handle<ColorMaterial>, Handle<ColorMaterial>, Handle<ColorMaterial>);
-
 #[derive(Resource, Deref, DerefMut)]
-struct AtlasHandles(Handle<TextureAtlas>);
-
-#[derive(Resource, Deref, DerefMut)]
-struct CircleTexture(Handle<Image>);
+struct PieceAtlasHandle(Handle<TextureAtlas>);
 
 fn setup_resources(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     asset_server: Res<AssetServer>,
 ) {
-    let texture_handle = asset_server.load("textures/viruses.png");
-    let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 1, 3, None, None);
+    let texture_handle = asset_server.load("textures/pieces.png");
+    let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 1, 6, None, None);
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
-    commands.insert_resource(AtlasHandles(texture_atlas_handle));
-
-    let circle_texture_handle: Handle<Image> = asset_server.load("textures/circle.png");
-    commands.insert_resource(CircleTexture(circle_texture_handle));
+    commands.insert_resource(PieceAtlasHandle(texture_atlas_handle));
 
     let move_sound_handle = asset_server.load("sounds/move.ogg");
     let rotate_sound_handle = asset_server.load("sounds/rotate.ogg");
     let pop_sound_handle = asset_server.load("sounds/pop.ogg");
     commands.insert_resource(PillSounds { move_sound_handle, rotate_sound_handle, pop_sound_handle });
-
-    let virus_mesh_handle = meshes.add(shape::RegularPolygon::new(CELL_SIZE/2.0, 6).into());
-    let pill_mesh_handle = meshes.add(shape::Circle::new(CELL_SIZE/2.0).into());
-    commands.insert_resource(MeshHandles(virus_mesh_handle, pill_mesh_handle));
-
-    let red_material = materials.add(RED_COLOR.into());
-    let blue_material = materials.add(BLUE_COLOR.into());
-    let yellow_material = materials.add(YELLOW_COLOR.into());
-    commands.insert_resource(MaterialHandles(red_material, blue_material, yellow_material));
-
 }
 
 const CELL_SIZE: f32 = 32.0;
@@ -178,24 +151,21 @@ fn spawn_pill(
 
 fn add_sprites(
     mut commands: Commands,
-    mesh_handles: Res<MeshHandles>,
-    material_handles: Res<MaterialHandles>,
-    atlas_handles: Res<AtlasHandles>,
-    circle_texture_handle: Res<CircleTexture>,
+    atlas_handle: Res<PieceAtlasHandle>,
     mut virus_query: Query<(Entity, &Virus), (Added<Virus>, With<BoardPosition>)>,
     mut pill_query: Query<(Entity, &Pill, Option<&BoardPosition>, Option<&NextPill>), Added<Pill>>,
     cleared_query: Query<(Entity, &ClearedCell), (Added<ClearedCell>, With<BoardPosition>)>,
 ) {
     for (entity, virus_type) in virus_query.iter_mut() {
         let (texture_atlas, sprite) = match virus_type.0 {
-            CellColor::RED => (atlas_handles.clone(), TextureAtlasSprite::new(1)),
-            CellColor::BLUE => (atlas_handles.clone(), TextureAtlasSprite::new(0)),
-            CellColor::YELLOW => (atlas_handles.clone(), TextureAtlasSprite::new(2)),
-            CellColor::GREEN => (atlas_handles.clone(), TextureAtlasSprite::new(2)),
-            CellColor::ORANGE => (atlas_handles.clone(), TextureAtlasSprite::new(2)),
-            CellColor::PURPLE => (atlas_handles.clone(), TextureAtlasSprite::new(1)),
+            CellColor::RED => (atlas_handle.clone(), TextureAtlasSprite::new(1)),
+            CellColor::BLUE => (atlas_handle.clone(), TextureAtlasSprite::new(0)),
+            CellColor::YELLOW => (atlas_handle.clone(), TextureAtlasSprite::new(2)),
+            CellColor::GREEN => (atlas_handle.clone(), TextureAtlasSprite::new(2)),
+            CellColor::ORANGE => (atlas_handle.clone(), TextureAtlasSprite::new(2)),
+            CellColor::PURPLE => (atlas_handle.clone(), TextureAtlasSprite::new(1)),
         };
-        let transform = Transform::default().with_scale(Vec3::new(0.5, 0.5, 1.0));
+        let transform = Transform::from_scale(Vec3::new(0.5, 0.5, 100.0));
         commands.entity(entity)
             .insert(SpriteSheetBundle { 
                 texture_atlas,
@@ -205,24 +175,32 @@ fn add_sprites(
         });
     }
     for (entity, pill_type, board_position, next_pill) in pill_query.iter_mut() {
-        let (mesh, material) = match pill_type.0 {
-            CellColor::RED => (mesh_handles.1.clone().into(), material_handles.0.clone()),
-            CellColor::BLUE => (mesh_handles.1.clone().into(), material_handles.1.clone()),
-            CellColor::YELLOW => (mesh_handles.1.clone().into(), material_handles.2.clone()),
-            CellColor::GREEN => (mesh_handles.1.clone().into(), material_handles.0.clone()),
-            CellColor::ORANGE => (mesh_handles.1.clone().into(), material_handles.0.clone()),
-            CellColor::PURPLE => (mesh_handles.1.clone().into(), material_handles.0.clone()),
+        let color = match pill_type.0 {
+            CellColor::RED => RED_COLOR,
+            CellColor::YELLOW => YELLOW_COLOR,
+            CellColor::BLUE => BLUE_COLOR,
+            CellColor::ORANGE => RED_COLOR,
+            CellColor::GREEN => YELLOW_COLOR,
+            CellColor::PURPLE => BLUE_COLOR,
         };
-        let (x, y) = match (board_position, next_pill) {
-            (Some(pos), _) => (pos.column as f32 * CELL_SIZE, pos.row as f32 * CELL_SIZE),
-            (None, Some(next_index)) => (CELL_SIZE*(10.0 + next_index.0 as f32), 0.0),
+        let sprite = TextureAtlasSprite {index:5, color, ..default()};
+        let transform = match (board_position, next_pill) {
+            (Some(pos), _) => { 
+                Transform::from_xyz(pos.column as f32 * CELL_SIZE, pos.row as f32 * CELL_SIZE, 100.0)
+                    .with_scale(Vec3::new(0.5, 0.5, 1.0))
+            },
+            (None, Some(next_index)) => {
+                Transform::from_xyz((10.0 + next_index.0 as f32) * CELL_SIZE, 0.0, 100.0)
+                    .with_scale(Vec3::new(0.5, 0.5, 1.0))
+                    .with_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_2 * ((next_index.0 as f32 * 2.0) + 1.)))
+            },
             _ => continue,
         };
         commands.entity(entity)
-            .insert(MaterialMesh2dBundle { 
-                mesh,
-                material, 
-                transform: Transform::from_translation(Vec3::new(x, y, 100.0)),
+            .insert(SpriteSheetBundle { 
+                texture_atlas: atlas_handle.clone(),
+                sprite,
+                transform,
                 ..default() 
         });
     }
@@ -236,10 +214,10 @@ fn add_sprites(
             CellColor::PURPLE => BLUE_COLOR,
         };
         commands.entity(entity)
-            .insert(SpriteBundle {
-                sprite: Sprite { color, ..default()},
-                texture: circle_texture_handle.clone(),
-                transform: Transform::default().with_scale(Vec3::new(0.5, 0.5, 1.0)),
+            .insert(SpriteSheetBundle {
+                sprite: TextureAtlasSprite { index: 3, color, ..default()},
+                texture_atlas: atlas_handle.clone(),
+                transform: Transform::from_scale(Vec3::new(0.5, 0.5, 1.0)),
                 ..default()
             });
     }
@@ -252,6 +230,16 @@ fn update_transforms(
     for (board_position, mut transform) in query.iter_mut() {
         transform.translation.x = (board_position.column as f32 * CELL_SIZE) - (CELL_SIZE * board.cols as f32) / 2.0 + CELL_SIZE / 2.0;
         transform.translation.y = (board_position.row as f32 * CELL_SIZE) - (CELL_SIZE * board.rows as f32) / 2.0 + CELL_SIZE / 2.0;
+        if let Some(orientation) = board
+            .get(board_position.row as usize, board_position.column as usize)
+            .get_orientation() {
+            transform.rotation = match orientation {
+                Orientation::Above => Quat::from_rotation_z(std::f32::consts::PI),
+                Orientation::Below => Quat::from_rotation_z(0.),
+                Orientation::Left => Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
+                Orientation::Right => Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
+            };
+        }
     }
 }
 
