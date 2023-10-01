@@ -1,10 +1,15 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, ecs::component::TableStorage};
 use rand::{Rng, thread_rng};
 
 use crate::game::board::*;
 
 mod game;
 
+impl<T: Copy + PartialEq + Send + Sync + 'static> Component for Cell<T> {
+    type Storage = TableStorage;
+}
+
+impl<T: Copy + PartialEq + Sync + Send + 'static> Resource for Board<T> {}
 /// Put systems here
 /// 
 fn setup_camera(

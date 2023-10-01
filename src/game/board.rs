@@ -1,4 +1,3 @@
-use bevy::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CellColor {
@@ -18,7 +17,7 @@ pub enum Orientation {
     Left,
 }
 
-#[derive(Clone, Copy, Component, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Cell<T: Clone + Copy + PartialEq> {
     Empty,
     Virus(T, CellColor),
@@ -71,7 +70,7 @@ impl<T: Clone + Copy + PartialEq> Cell<T> {
     }
 }
 
-#[derive(Clone, Default, Resource)]
+#[derive(Clone, Default)]
 pub struct Board<T: Clone + Copy + PartialEq> {
     pub rows: usize,
     pub cols: usize,
