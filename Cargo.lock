@@ -2539,12 +2539,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "pills"
-version = "0.1.0"
+name = "pills_game"
+version = "0.1.0-dev"
 dependencies = [
  "bevy",
+ "pills_game_board",
  "rand",
 ]
+
+[[package]]
+name = "pills_game_board"
+version = "0.1.0-dev"
 
 [[package]]
 name = "pin-project-lite"

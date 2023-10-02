@@ -1,15 +1,14 @@
-use bevy::{prelude::*, ecs::component::TableStorage};
+use bevy::prelude::*;
 use rand::{Rng, thread_rng};
 
-use crate::game::board::*;
+use pills_game_board::*;
 
-mod game;
+#[derive(Component, Deref, DerefMut)]
+struct CellComponent(Cell<Entity>);
 
-impl<T: Copy + PartialEq + Send + Sync + 'static> Component for Cell<T> {
-    type Storage = TableStorage;
-}
+#[derive(Resource, Deref, DerefMut)]
+struct GameBoard(Board<Entity>);
 
-impl<T: Copy + PartialEq + Sync + Send + 'static> Resource for Board<T> {}
 /// Put systems here
 /// 
 fn setup_camera(
@@ -58,16 +57,16 @@ fn spawn_board_background(
             transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
             ..default()
         },
-        GameBoard,
+        ActiveGameBoard,
     ));
 
 }
 
 fn spawn_viruses(
     mut commands: Commands,
-    mut board: ResMut<Board<Entity>>,
+    mut board: ResMut<GameBoard>,
     config: Res<GameConfig>,
-    query: Query<Entity, With<GameBoard>>,
+    query: Query<Entity, With<ActiveGameBoard>>,
 ) {
     commands.entity(query.single()).with_children(|parent| {
         let mut virus_count = config.max_viruses;
@@ -120,10 +119,10 @@ fn rand_color() -> CellColor {
 
 fn add_pill_to_board(
     mut commands: Commands,
-    mut board: ResMut<Board<Entity>>,
+    mut board: ResMut<GameBoard>,
     mut events: EventWriter<GameResult>,
     pieces_query: Query<(Entity, &Pill, &NextPill), Without<BoardPosition>>,
-    board_query: Query<Entity, With<GameBoard>>,
+    board_query: Query<Entity, With<ActiveGameBoard>>,
 ) {
     let (row, col) = (board.rows-1, board.cols/2-1);
     let board_ent = board_query.single();
@@ -230,7 +229,7 @@ fn add_sprites(
 
 fn update_transforms(
     mut query: Query<(&BoardPosition, &mut Transform), Or<(Added<BoardPosition>, Changed<BoardPosition>)>>,
-    board: Res<Board<Entity>>,
+    board: Res<GameBoard>,
 ) {
     for (board_position, mut transform) in query.iter_mut() {
         transform.translation.x = (board_position.column as f32 * CELL_SIZE) - (CELL_SIZE * board.cols as f32) / 2.0 + CELL_SIZE / 2.0;
@@ -254,7 +253,7 @@ fn start_game(
     config: Res<GameConfig>,
 ) {
     let (rows, cols) = config.board_size;
-    commands.insert_resource(Board::<Entity>::new(rows as usize, cols as usize));
+    commands.insert_resource(GameBoard(Board::new(rows as usize, cols as usize)));
     state.set(GameState::PillDropping);
 }
 
@@ -271,7 +270,7 @@ fn check_resolve_timer(
 fn clear_matches(
     mut commands: Commands,
     mut state: ResMut<NextState<GameState>>,
-    mut board: ResMut<Board<Entity>>,
+    mut board: ResMut<GameBoard>,
     mut events: EventWriter<ClearEvent>,
 ) {
     let mut cells_cleared = false;
@@ -311,7 +310,7 @@ fn clear_matches(
 fn rotate_pill(
     mut control_query: Query<&mut BoardPosition, (With<Pill>, With<Controllable>)>,
     mut query: Query<&mut BoardPosition, (With<Pill>, Without<Controllable>)>,
-    mut board: ResMut<Board<Entity>>,
+    mut board: ResMut<GameBoard>,
     mut pill_moved_events: EventWriter<PillEvent>,
     input: Res<Input<KeyCode>>,
 ) {
@@ -400,7 +399,7 @@ fn check_movement_input(
 fn move_pill(
     mut control_query: Query<&mut BoardPosition, (With<Pill>, With<Controllable>)>,
     mut query: Query<&mut BoardPosition, (With<Pill>, Without<Controllable>)>,
-    mut board: ResMut<Board<Entity>>,
+    mut board: ResMut<GameBoard>,
     mut events: EventReader<MoveEvent>,
     mut pill_moved_events: EventWriter<PillEvent>,
 ) {
@@ -453,7 +452,7 @@ fn move_pill(
 }
 
 fn drop_pieces(
-    mut board: ResMut<Board<Entity>>,
+    mut board: ResMut<GameBoard>,
     mut query: Query<&mut BoardPosition, With<Pill>>,
     mut state: ResMut<NextState<GameState>>,
 ) {
@@ -474,7 +473,7 @@ fn drop_pieces(
         }
     }
     if piece_moved {
-        *board = next_board;
+        *board = GameBoard(next_board);
     } else {
         state.set(GameState::Resolving);
     }
@@ -482,7 +481,7 @@ fn drop_pieces(
 
 fn drop_pill(
     mut commands: Commands,
-    mut board: ResMut<Board<Entity>>,
+    mut board: ResMut<GameBoard>,
     mut query: Query<&mut BoardPosition, With<Pill>>,
     mut state: ResMut<NextState<GameState>>,
     control_query: Query<Entity, With<Controllable>>,
@@ -512,7 +511,7 @@ fn drop_pill(
 
 fn check_for_game_over(
     mut event: EventWriter<GameResult>,
-    board: Res<Board<Entity>>,
+    board: Res<GameBoard>,
 ) {
     if board.virus_count() < 1 {
         event.send(GameResult::Win);
@@ -562,7 +561,7 @@ fn cleanup_cleared(
 
 fn cleanup_game(
     mut commands: Commands,
-    board_query: Query<Entity, With<GameBoard>>,
+    board_query: Query<Entity, With<ActiveGameBoard>>,
     next_pill: Query<Entity, With<NextPill>>,
 ) {
     for ent in board_query.iter() {
@@ -799,7 +798,7 @@ struct NextPill(u8);
 struct Controllable;
 
 #[derive(Component)]
-struct GameBoard;
+struct ActiveGameBoard;
 
 #[derive(Resource, Deref, DerefMut)]
 struct MovementTimer(Timer);

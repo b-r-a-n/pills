@@ -1,0 +1,8 @@
+[package]
+name = "pills_game_board"
+description = "Underlying board model for the Pills game."
+
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
