@@ -8,11 +8,11 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    -name: install-alsa-deps
+    - name: install-alsa-deps
       run: sudo apt install librust-alsa-sys-dev
     
     - name: install-wasm32-unknown-unknown
-        run: rustup target add wasm32-unknown-unknown
+      run: rustup target add wasm32-unknown-unknown
 
     - name: install-wasm-bindgen
       run: cargo install -f wasm-bindgen-cli
