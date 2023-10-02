@@ -528,20 +528,29 @@ fn check_for_game_over(
 fn handle_game_result(
     mut commands: Commands,
     mut game_state: ResMut<NextState<GameState>>,
+    mut config: ResMut<GameConfig>,
     mut event: EventReader<GameResult>,
+    mut global_score: ResMut<Score>,
+    query: Query<&Score>,
 ) {
     if event.is_empty() { return }
     match event.iter().next().unwrap() {
         GameResult::Loss => {
+            // TODO: Display the global score before restting it
             commands.spawn(MenuTitle::GameOver);
+            commands.spawn(MenuTitle::Custom(format!("Total Score: {}", global_score.0)));
+            commands.insert_resource(BASE_CONFIG);
+            global_score.0 = 0;
             commands.spawn_batch([
                 (MenuOption::Play),
                 (MenuOption::Exit)
             ]);
-            
         },
         GameResult::Win => {
             commands.spawn(MenuTitle::Victory);
+            global_score.0 += query.single().0;
+            config.max_viruses *= 2;
+            commands.spawn(MenuTitle::Custom(format!("Total Score: {}", global_score.0)));
             commands.spawn_batch([
                 (MenuOption::NextLevel),
                 (MenuOption::Exit)
@@ -612,6 +621,7 @@ enum MenuOption {
 enum MenuTitle {
     GameOver,
     Victory,
+    Custom(String),
 }
 
 impl Into<String> for &MenuOption {
@@ -668,14 +678,15 @@ fn setup_menu(
             background_color: Color::BLACK.into(),
             ..default()})
         .id();
-    if let Ok((entity, title)) = title_query.get_single() {
+    for (entity, title) in &title_query {
         commands.entity(entity).insert(
             TextBundle {
                 text: Text {
                     sections: vec![TextSection {
                         value: match title { 
                             MenuTitle::GameOver => "Game Over".to_string(), 
-                            MenuTitle::Victory => "Victory".to_string()
+                            MenuTitle::Victory => "Victory".to_string(),
+                            MenuTitle::Custom(text) => text.clone(),
                         },
                         style: TextStyle {
                             font_size: 80.0,
@@ -726,7 +737,6 @@ fn menu(
     mut app_state: ResMut<NextState<AppState>>,
     curr_game_state: Res<State<GameState>>,
     mut game_state: ResMut<NextState<GameState>>,
-    mut config: ResMut<GameConfig>,
     focused_windows: Query<(Entity, &Window)>,
 ){
     for (interaction, option, mut background_color, children) in &mut interaction_query {
@@ -889,7 +899,7 @@ struct Controllable;
 #[derive(Component)]
 struct ActiveGameBoard;
 
-#[derive(Component, Deref, DerefMut)]
+#[derive(Component, Deref, DerefMut, Resource)]
 struct Score(usize);
 
 #[derive(Resource, Deref, DerefMut)]
@@ -905,6 +915,13 @@ struct ResolveTimer(Timer);
 struct MenuData {
     button_entity: Entity,
 }
+
+const BASE_CONFIG: GameConfig = GameConfig {
+    board_size: (16, 8),
+    max_viruses: 1,
+    drop_period: 0.8,
+    fall_period: 0.2,
+};
 
 #[derive(Resource)]
 struct GameConfig {
@@ -965,12 +982,8 @@ fn main() {
         .add_event::<GameResult>()
         .add_event::<PillSpawned>()
         .add_event::<VirusCleared>()
-        .insert_resource(GameConfig {
-            board_size: (16, 8),
-            max_viruses: 1,
-            drop_period: 0.6,
-            fall_period: 0.2,
-        })
+        .insert_resource(BASE_CONFIG)
+        .insert_resource(Score(0))
         .add_systems(Startup, (setup_resources, setup_camera, spawn_board_background.after(setup_resources)))
         .add_systems(PostStartup, startup_finished)
         .add_systems(OnEnter(AppState::Menu), setup_menu)
