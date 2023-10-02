@@ -1,0 +1,35 @@
+name: Deploy to web
+on:
+  push:
+    branches: ["main"]
+jobs:
+  deploy-to-web:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: install-wasm-bindgen
+      run: cargo install -f wasm-bindgen-cli
+    
+    - name: cargo-build-wasm32-target
+      run: cargo build --release --target wasm32-unknown-unknown
+
+    - name: generate-wasm-with-wasm-bindgen
+      run: wasm-bindgen --out-dir ./out/ --no-typescript --target web ./target/wasm32-unknown-unknown/release/pills.wasm
+      
+    - name: run-wasm-opt
+      uses: NiklasEi/wasm-opt-action@v2
+      with:
+        file: ./out/pills_bg.wasm
+
+    - name: copy-assets-folder
+      run: cp -r assets ./out/
+
+    - name: add-index
+      run: cp ./web/index.html ./out/
+
+    - name: deploy-to-pages
+      uses: JamesIves/github-pages-deploy-action@v4
+      with:
+        folder: out
+        brach: web
