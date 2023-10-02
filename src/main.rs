@@ -120,7 +120,8 @@ fn rand_color() -> CellColor {
 fn add_pill_to_board(
     mut commands: Commands,
     mut board: ResMut<GameBoard>,
-    mut events: EventWriter<GameResult>,
+    mut result_events: EventWriter<GameResult>,
+    mut spawn_events: EventWriter<PillSpawned>,
     pieces_query: Query<(Entity, &Pill, &NextPill), Without<BoardPosition>>,
     board_query: Query<Entity, With<ActiveGameBoard>>,
 ) {
@@ -130,7 +131,7 @@ fn add_pill_to_board(
         let col = col + pill_index.0 as usize;
         let orientation = if pill_index.0 == 0 { Some(Orientation::Right) } else { Some(Orientation::Left) };
         if board.get(row, col) != Cell::Empty {
-            events.send(GameResult::Loss);
+            result_events.send(GameResult::Loss);
             return;
         }
         board.set(row, col, Cell::Pill(ent, pill.0, orientation));
@@ -140,6 +141,7 @@ fn add_pill_to_board(
             .set_parent(board_ent);
         if pill_index.0 == 1 {
             commands.entity(ent).insert(Controllable);
+            spawn_events.send(PillSpawned);
         }
     }
 }
@@ -253,6 +255,9 @@ fn start_game(
     config: Res<GameConfig>,
 ) {
     let (rows, cols) = config.board_size;
+    commands.insert_resource(MovementTimer(Timer::from_seconds(0.2, TimerMode::Repeating)));
+    commands.insert_resource(DropTimer(Timer::from_seconds(config.drop_period, TimerMode::Repeating)));
+    commands.insert_resource(FixedTime::new_from_secs(config.fall_period));
     commands.insert_resource(GameBoard(Board::new(rows as usize, cols as usize)));
     state.set(GameState::PillDropping);
 }
@@ -271,7 +276,8 @@ fn clear_matches(
     mut commands: Commands,
     mut state: ResMut<NextState<GameState>>,
     mut board: ResMut<GameBoard>,
-    mut events: EventWriter<ClearEvent>,
+    mut clear_events: EventWriter<ClearEvent>,
+    mut virus_clear_events: EventWriter<VirusCleared>,
 ) {
     let mut cells_cleared = false;
     let next_board = board.resolve(|lhs, rhs| lhs.color() == rhs.color());
@@ -279,6 +285,7 @@ fn clear_matches(
         if next_board.cells[i] == Cell::Empty {
             match board.cells[i] {
                 Cell::Virus(ent, color) => {
+                    virus_clear_events.send(VirusCleared(color));
                     commands.entity(ent).despawn_recursive();
                     commands.spawn((
                         BoardPosition { row: (i / board.cols) as u8, column: (i % board.cols) as u8 },
@@ -300,7 +307,7 @@ fn clear_matches(
         board.cells[i] = next_board.cells[i];
     }
     if cells_cleared {
-        events.send(ClearEvent);
+        clear_events.send(ClearEvent);
     } else {
         state.set(GameState::PillDropping);
     }
@@ -617,6 +624,34 @@ impl Into<String> for &MenuOption {
     }
 }
 
+fn setup_ui(
+    mut commands: Commands,
+) {
+    let ui_entity = commands.spawn(NodeBundle {
+        style: Style {
+            height: Val::Px(100.0),
+            width: Val::Px(200.0),
+            flex_direction: FlexDirection::Column,
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            ..default()
+        },
+        background_color: Color::BLACK.into(),
+        ..default()
+    }).id();
+    commands.spawn((
+        TextBundle::from_section(
+            format!("Score: {}", 0),
+            TextStyle {
+                font_size: 40.0,
+                color: Color::WHITE.into(),
+                ..default()
+        }),
+        Score(0),
+    ))
+        .set_parent(ui_entity);
+}
+
 fn setup_menu(
     mut commands: Commands,
     query: Query<(Entity, &MenuOption)>,
@@ -635,19 +670,30 @@ fn setup_menu(
         .id();
     if let Ok((entity, title)) = title_query.get_single() {
         commands.entity(entity).insert(
-            TextBundle::from_section(
-                match title { MenuTitle::GameOver => "Game Over", MenuTitle::Victory => "Victory"},
-                TextStyle {
-                    font_size: 80.0,
-                    color: Color::WHITE.into(),
-                    ..default()
-                }))
+            TextBundle {
+                text: Text {
+                    sections: vec![TextSection {
+                        value: match title { 
+                            MenuTitle::GameOver => "Game Over".to_string(), 
+                            MenuTitle::Victory => "Victory".to_string()
+                        },
+                        style: TextStyle {
+                            font_size: 80.0,
+                            color: Color::WHITE.into(),
+                            ..default()
+                        },
+                    }],
+                    alignment: TextAlignment::Center,
+                    linebreak_behavior: bevy::text::BreakLineOn::NoWrap,
+                },
+                ..default()
+            })
             .set_parent(button_entity);
     }
     for (entity, option) in &query {
         commands.entity(entity).insert(ButtonBundle {
             style: Style {
-                width: Val::Px(200.0),
+                width: Val::Px(400.0),
                 height: Val::Px(80.0),
                 border: UiRect::all(Val::Px(2.0)),
                 justify_content: JustifyContent::Center,
@@ -675,30 +721,36 @@ fn setup_menu(
 
 fn menu(
     mut commands: Commands,
-    mut interaction_query: Query<(&Interaction, &MenuOption, &mut BackgroundColor), (Changed<Interaction>, With<Button>)>,
+    mut interaction_query: Query<(&Interaction, &MenuOption, &mut BackgroundColor, &Children), (Changed<Interaction>, With<Button>)>,
+    mut text_query: Query<&mut Text>,
     mut app_state: ResMut<NextState<AppState>>,
     curr_game_state: Res<State<GameState>>,
     mut game_state: ResMut<NextState<GameState>>,
     mut config: ResMut<GameConfig>,
     focused_windows: Query<(Entity, &Window)>,
 ){
-    for (interaction, option, mut color) in &mut interaction_query {
+    for (interaction, option, mut background_color, children) in &mut interaction_query {
         match (interaction, option) {
             (Interaction::Pressed, MenuOption::Play) => {
-                *color = Color::GREEN.into();
+                let mut text = text_query.get_mut(children[0]).unwrap();
+                *background_color = Color::DARK_GRAY.into();
+                text.sections[0].style.color = Color::PINK.into();
                 if curr_game_state.get() == &GameState::Finished {
                     game_state.set(GameState::Starting);
                 }
                 app_state.set(AppState::InGame);
             },
             (Interaction::Pressed, MenuOption::NextLevel) => {
-                *color = Color::GREEN.into();
-                config.max_viruses *= 2;
+                let mut text = text_query.get_mut(children[0]).unwrap();
+                *background_color = Color::DARK_GRAY.into();
+                text.sections[0].style.color = Color::PINK.into();
                 game_state.set(GameState::Starting);
                 app_state.set(AppState::InGame);
             },
             (Interaction::Pressed, MenuOption::Exit) => {
-                *color = Color::GREEN.into();
+                let mut text = text_query.get_mut(children[0]).unwrap();
+                *background_color = Color::DARK_GRAY.into();
+                text.sections[0].style.color = Color::PINK.into();
                 for (window, focus) in focused_windows.iter() {
                     if !focus.focused {
                         continue;
@@ -707,10 +759,14 @@ fn menu(
                 }
             },
             (Interaction::Hovered, _) => {
-                *color = Color::YELLOW.into();
+                let mut text = text_query.get_mut(children[0]).unwrap();
+                *background_color = Color::BLACK.into();
+                text.sections[0].style.color = Color::YELLOW.into();
             },
             (Interaction::None, _) => {
-                *color = Color::BLACK.into();
+                let mut text = text_query.get_mut(children[0]).unwrap();
+                *background_color = Color::BLACK.into();
+                text.sections[0].style.color = Color::WHITE.into();
             },
         }
     }
@@ -774,6 +830,39 @@ fn play_clear_sound(
     events.clear();
 }
 
+fn update_score(
+    mut query: Query<&mut Score>,
+    mut spawn_events: EventReader<PillSpawned>,
+    mut virus_cleared_events: EventReader<VirusCleared>,
+) {
+    if let Ok(mut score) = query.get_single_mut() {
+        for _ in spawn_events.iter() {
+            if score.0 > 0 {
+                score.0 -= 1;
+            }
+        }
+        for _ in virus_cleared_events.iter() {
+            score.0 += 3;
+        }
+    }
+}
+
+fn update_ui(
+    mut query: Query<(&mut Text, &Score), Changed<Score>>,
+) {
+    for (mut text, score) in &mut query {
+        text.sections[0].value = format!("Score: {}", score.0);
+    }
+}
+
+fn cleanup_ui(
+    mut commands: Commands,
+    query: Query<&Parent, With<Score>>,
+) {
+    let entity = query.single().get();
+    commands.entity(entity).despawn_recursive();
+}
+
 /// Put components here
 /// 
 #[derive(Component)]
@@ -799,6 +888,9 @@ struct Controllable;
 
 #[derive(Component)]
 struct ActiveGameBoard;
+
+#[derive(Component, Deref, DerefMut)]
+struct Score(usize);
 
 #[derive(Resource, Deref, DerefMut)]
 struct MovementTimer(Timer);
@@ -834,6 +926,12 @@ struct DropEvent;
 #[derive(Debug, Event)]
 struct ClearEvent;
 
+#[derive(Debug, Event)]
+struct PillSpawned;
+
+#[derive(Debug, Deref, DerefMut, Event)]
+struct VirusCleared(CellColor);
+
 #[derive(Event)]
 enum GameResult { Loss, Win }
 
@@ -865,31 +963,32 @@ fn main() {
         .add_event::<PillEvent>()
         .add_event::<ClearEvent>()
         .add_event::<GameResult>()
+        .add_event::<PillSpawned>()
+        .add_event::<VirusCleared>()
         .insert_resource(GameConfig {
             board_size: (16, 8),
             max_viruses: 1,
             drop_period: 0.6,
             fall_period: 0.2,
         })
-        .insert_resource(MovementTimer(Timer::from_seconds(0.2, TimerMode::Repeating)))
-        .insert_resource(DropTimer(Timer::from_seconds(0.8, TimerMode::Repeating)))
-        .insert_resource(FixedTime::new_from_secs(0.2))
         .add_systems(Startup, (setup_resources, setup_camera, spawn_board_background.after(setup_resources)))
         .add_systems(PostStartup, startup_finished)
         .add_systems(OnEnter(AppState::Menu), setup_menu)
         .add_systems(OnExit(AppState::Menu), cleanup_menu)
-        .add_systems(OnEnter(GameState::Starting), start_game)
+        .add_systems(OnEnter(GameState::Starting), (start_game, setup_ui))
         .add_systems(OnExit(GameState::Starting), (spawn_viruses, spawn_pill))
         .add_systems(OnEnter(GameState::PillDropping), (add_pill_to_board.before(spawn_pill), spawn_pill))
         .add_systems(OnEnter(GameState::Resolving), clear_matches)
         .add_systems(OnExit(GameState::Resolving), (cleanup_cleared, check_for_game_over))
         .add_systems(OnEnter(GameState::Finished), handle_finished)
-        .add_systems(OnExit(GameState::Finished), cleanup_game)
+        .add_systems(OnExit(GameState::Finished), (cleanup_game, cleanup_ui))
         .add_systems(
             Update, 
             (
                 add_sprites, 
                 handle_game_result,
+                update_score,
+                update_ui,
                 (move_pill, rotate_pill, drop_pill, check_movement_input, play_pill_sound)
                     .run_if(in_state(AppState::InGame))
                     .run_if(in_state(GameState::PillDropping)),
