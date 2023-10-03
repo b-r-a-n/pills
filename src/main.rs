@@ -2,6 +2,9 @@ use bevy::prelude::*;
 use rand::{Rng, thread_rng};
 
 use pills_game_board::*;
+use pills_auras::*;
+use pills_pieces::*;
+use pills_score::*;
 
 #[derive(Component, Deref, DerefMut)]
 struct CellComponent(Cell<Entity>);
@@ -41,26 +44,6 @@ fn setup_resources(
 }
 
 const CELL_SIZE: f32 = 32.0;
-
-fn spawn_board_background(
-    mut commands: Commands,
-    config: Res<GameConfig>,
-) {
-    let (rows, cols) = config.board_size;
-    commands.spawn((
-        SpriteBundle {
-            sprite: Sprite {
-                color: Color::BLACK,
-                custom_size: Some(Vec2::new(CELL_SIZE * cols as f32, CELL_SIZE * rows as f32)),
-                ..default()
-            },
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
-            ..default()
-        },
-        ActiveGameBoard,
-    ));
-
-}
 
 fn spawn_viruses(
     mut commands: Commands,
@@ -211,7 +194,7 @@ fn add_sprites(
         });
     }
     for (entity, cell) in &cleared_query {
-        let color = match cell.0 {
+        let color = match cell.color {
             CellColor::RED => RED_COLOR,
             CellColor::YELLOW => YELLOW_COLOR,
             CellColor::BLUE => BLUE_COLOR,
@@ -276,11 +259,13 @@ fn clear_matches(
     mut commands: Commands,
     mut state: ResMut<NextState<GameState>>,
     mut board: ResMut<GameBoard>,
+    board_query: Query<Entity, With<ActiveGameBoard>>,
     mut clear_events: EventWriter<ClearEvent>,
     mut virus_clear_events: EventWriter<VirusCleared>,
 ) {
     let mut cells_cleared = false;
     let next_board = board.resolve(|lhs, rhs| lhs.color() == rhs.color());
+    let board_ent = board_query.single();
     for i in 0..board.cells.len() {
         if next_board.cells[i] == Cell::Empty {
             match board.cells[i] {
@@ -289,16 +274,16 @@ fn clear_matches(
                     commands.entity(ent).despawn_recursive();
                     commands.spawn((
                         BoardPosition { row: (i / board.cols) as u8, column: (i % board.cols) as u8 },
-                        ClearedCell(color),
-                    ));
+                        ClearedCell{color, was_virus: true},
+                    )).set_parent(board_ent);
                     cells_cleared = true;
                 }
                 Cell::Pill(ent, color, _) => {
                     commands.entity(ent).despawn_recursive();
                     commands.spawn((
                         BoardPosition { row: (i / board.cols) as u8, column: (i % board.cols) as u8 },
-                        ClearedCell(color),
-                    ));
+                        ClearedCell {color, was_virus: false},
+                    )).set_parent(board_ent);
                     cells_cleared = true;
                 }
                 _ => {}
@@ -550,6 +535,9 @@ fn handle_game_result(
             commands.spawn(MenuTitle::Victory);
             global_score.0 += query.single().0;
             config.max_viruses *= 2;
+            if config.drop_period > 0.2 {
+                config.drop_period -= 0.1;
+            }
             commands.spawn(MenuTitle::Custom(format!("Total Score: {}", global_score.0)));
             commands.spawn_batch([
                 (MenuOption::NextLevel),
@@ -602,7 +590,15 @@ fn pause_game(
 fn startup_finished(
     mut commands: Commands,
     mut game_state: ResMut<NextState<GameState>>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    asset_server: Res<AssetServer>,
+    sidebar_container: Res<SidebarContainer>
 ) {
+    // TODO: Figure out to make this work in the aura plugin
+    // This is problematic, if we don't have the plugin group, we don't want to do this
+    // It should probably be moved into the plugin itself
+    let layout_ent = spawn_layout(&mut commands, &asset_server, &mut texture_atlases);
+    commands.entity(sidebar_container.0).add_child(layout_ent);
     commands.spawn_batch([
         (MenuOption::Play),
         (MenuOption::Exit),
@@ -634,34 +630,6 @@ impl Into<String> for &MenuOption {
     }
 }
 
-fn setup_ui(
-    mut commands: Commands,
-) {
-    let ui_entity = commands.spawn(NodeBundle {
-        style: Style {
-            height: Val::Px(100.0),
-            width: Val::Px(200.0),
-            flex_direction: FlexDirection::Column,
-            justify_content: JustifyContent::Center,
-            align_items: AlignItems::Center,
-            ..default()
-        },
-        background_color: Color::BLACK.into(),
-        ..default()
-    }).id();
-    commands.spawn((
-        TextBundle::from_section(
-            format!("Score: {}", 0),
-            TextStyle {
-                font_size: 40.0,
-                color: Color::WHITE.into(),
-                ..default()
-        }),
-        Score(0),
-    ))
-        .set_parent(ui_entity);
-}
-
 fn setup_menu(
     mut commands: Commands,
     query: Query<(Entity, &MenuOption)>,
@@ -670,7 +638,9 @@ fn setup_menu(
     let button_entity = commands
         .spawn(NodeBundle {
             style: Style {
+                position_type: PositionType::Absolute,
                 width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
                 flex_direction: FlexDirection::Column,
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
@@ -840,58 +810,60 @@ fn play_clear_sound(
     events.clear();
 }
 
-fn update_score(
-    mut query: Query<&mut Score>,
-    mut spawn_events: EventReader<PillSpawned>,
-    mut virus_cleared_events: EventReader<VirusCleared>,
-) {
-    if let Ok(mut score) = query.get_single_mut() {
-        for _ in spawn_events.iter() {
-            if score.0 > 0 {
-                score.0 -= 1;
-            }
-        }
-        for _ in virus_cleared_events.iter() {
-            score.0 += 3;
-        }
-    }
-}
+#[derive(Resource, Deref, DerefMut)]
+struct ContentContainer(Entity);
 
-fn update_ui(
-    mut query: Query<(&mut Text, &Score), Changed<Score>>,
-) {
-    for (mut text, score) in &mut query {
-        text.sections[0].value = format!("Score: {}", score.0);
-    }
-}
+#[derive(Resource, Deref, DerefMut)]
+struct SidebarContainer(Entity);
 
-fn cleanup_ui(
+fn setup_ui_grid(
     mut commands: Commands,
-    query: Query<&Parent, With<Score>>,
+    config: Res<GameConfig>,
 ) {
-    let entity = query.single().get();
-    commands.entity(entity).despawn_recursive();
+    let sidebar = commands
+        .spawn(NodeBundle{
+            style: Style {
+                display: Display::Grid,
+                ..default()
+            },
+            background_color: Color::BLUE.into(),
+            ..default()
+        })
+        .id();
+    commands
+        .spawn(NodeBundle {
+            style: Style {
+                display: Display::Flex,
+                width: Val::Auto,
+                height: Val::Percent(100.0),
+                ..default()
+            },
+            background_color: Color::PURPLE.into(),
+            ..default()
+        })
+        .add_child(sidebar);
+    commands.insert_resource(SidebarContainer(sidebar));
+    let (rows, cols) = config.board_size;
+    commands
+        .spawn((
+            SpriteBundle {
+                sprite: Sprite {
+                    color: Color::BLACK,
+                    custom_size: Some(Vec2::new(CELL_SIZE * cols as f32, CELL_SIZE * rows as f32)),
+                    ..default()
+                },
+                transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+                ..default()
+            },
+            ActiveGameBoard,
+            Score(0),
+            ScorePolicy::default(),
+        ));
+    //commands.insert_resource(ContentContainer(content));
 }
 
 /// Put components here
 /// 
-#[derive(Component)]
-struct BoardPosition {
-    row: u8,
-    column: u8,
-}
-
-#[derive(Component)]
-struct Virus(CellColor);
-
-#[derive(Component)]
-struct Pill(CellColor);
-
-#[derive(Component, Deref, DerefMut)]
-struct ClearedCell(CellColor);
-
-#[derive(Component)]
-struct NextPill(u8);
 
 #[derive(Component)]
 struct Controllable;
@@ -899,8 +871,6 @@ struct Controllable;
 #[derive(Component)]
 struct ActiveGameBoard;
 
-#[derive(Component, Deref, DerefMut, Resource)]
-struct Score(usize);
 
 #[derive(Resource, Deref, DerefMut)]
 struct MovementTimer(Timer);
@@ -973,6 +943,8 @@ enum AppState {
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(AuraPluginGroup)
+        .add_plugins(ScorePlugin)
         .add_state::<AppState>()
         .add_state::<GameState>()
         .add_event::<MoveEvent>()
@@ -984,24 +956,24 @@ fn main() {
         .add_event::<VirusCleared>()
         .insert_resource(BASE_CONFIG)
         .insert_resource(Score(0))
-        .add_systems(Startup, (setup_resources, setup_camera, spawn_board_background.after(setup_resources)))
+        .add_systems(Startup, (setup_resources, setup_camera, setup_ui_grid.after(setup_resources)))
         .add_systems(PostStartup, startup_finished)
         .add_systems(OnEnter(AppState::Menu), setup_menu)
         .add_systems(OnExit(AppState::Menu), cleanup_menu)
-        .add_systems(OnEnter(GameState::Starting), (start_game, setup_ui))
+        .add_systems(OnEnter(GameState::Starting), start_game)
         .add_systems(OnExit(GameState::Starting), (spawn_viruses, spawn_pill))
         .add_systems(OnEnter(GameState::PillDropping), (add_pill_to_board.before(spawn_pill), spawn_pill))
         .add_systems(OnEnter(GameState::Resolving), clear_matches)
         .add_systems(OnExit(GameState::Resolving), (cleanup_cleared, check_for_game_over))
         .add_systems(OnEnter(GameState::Finished), handle_finished)
-        .add_systems(OnExit(GameState::Finished), (cleanup_game, cleanup_ui))
+        .add_systems(OnExit(GameState::Finished), (cleanup_game, /*cleanup_ui*/))
         .add_systems(
             Update, 
             (
                 add_sprites, 
                 handle_game_result,
-                update_score,
-                update_ui,
+                //update_score,
+                //update_ui,
                 (move_pill, rotate_pill, drop_pill, check_movement_input, play_pill_sound)
                     .run_if(in_state(AppState::InGame))
                     .run_if(in_state(GameState::PillDropping)),

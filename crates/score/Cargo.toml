@@ -1,0 +1,10 @@
+[package]
+name = "pills_score"
+
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+bevy.workspace = true

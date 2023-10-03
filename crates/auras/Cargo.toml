@@ -1,0 +1,13 @@
+[package]
+name = "pills_auras"
+description = "Add base game customization via configurable auras."
+
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+bevy.workspace = true
+pills_pieces.workspace = true
+pills_score.workspace = true
