@@ -61,7 +61,7 @@ fn add_sprites(
             CellColor::ORANGE => (atlas_handle.clone(), TextureAtlasSprite::new(2)),
             CellColor::PURPLE => (atlas_handle.clone(), TextureAtlasSprite::new(1)),
         };
-        let transform = Transform::from_scale(Vec3::new(0.5, 0.5, 100.0));
+        let transform = Transform::from_scale(Vec3::new(0.5, 0.5, 1.0));
         commands.entity(entity)
             .insert(SpriteSheetBundle { 
                 texture_atlas,
@@ -109,6 +109,7 @@ fn add_sprites(
             CellColor::GREEN => YELLOW_COLOR,
             CellColor::PURPLE => BLUE_COLOR,
         };
+        info!("Adding sprite for cleared cell {:?}", entity);
         commands.entity(entity)
             .insert(SpriteSheetBundle {
                 sprite: TextureAtlasSprite { index: 3, color, ..default()},
@@ -120,11 +121,12 @@ fn add_sprites(
 }
 
 fn update_transforms(
-    mut query: Query<(&BoardPosition, &mut Transform, &InBoard), Or<(Added<BoardPosition>, Changed<BoardPosition>)>>,
+    mut query: Query<(Entity, &BoardPosition, &mut Transform, &InBoard), Or<(Added<Transform>, Added<BoardPosition>, Changed<BoardPosition>)>>,
     boards: Query<&GameBoard>,
 ) {
-    for (board_position, mut transform, board) in query.iter_mut() {
+    for (entity, board_position, mut transform, board) in query.iter_mut() {
         let board = boards.get(**board).unwrap();
+        info!("Setting transform for {:?}", entity);
         transform.translation.x = (board_position.column as f32 * CELL_SIZE) - (CELL_SIZE * board.cols as f32) / 2.0 + CELL_SIZE / 2.0;
         transform.translation.y = (board_position.row as f32 * CELL_SIZE) - (CELL_SIZE * board.rows as f32) / 2.0 + CELL_SIZE / 2.0;
         if let Some(orientation) = board
@@ -143,65 +145,52 @@ fn update_transforms(
 fn handle_game_result(
     mut commands: Commands,
     event: EventReader<BoardResult>,
-    mut state: ResMut<NextState<GameState>>,
-    mut boards: Query<(Entity, &GameBoard, &mut BoardConfig), With<KeyControlled>>, 
+    mut game_state: ResMut<NextState<GameState>>,
+    mut app_state: ResMut<NextState<AppState>>,
+    mut boards: Query<(Entity, &GameBoard, &mut BoardConfig, Option<&KeyControlled>)>, 
 ) {
     if event.is_empty() { return }
-    let (entity, board, mut config) = boards.iter_mut().next().unwrap();
-    if board.virus_count() < 1 {
-        commands.spawn(MenuTitle::Victory);
-        commands.spawn_batch([
-            (MenuOption::NextLevel),
-            (MenuOption::Exit)
-        ]);
-        config.max_viruses *= 2;
-        if config.drop_period > 0.2 {
-            config.drop_period -= 0.1;
+    for (entity, board, mut config, maybe_key_controlled) in boards.iter_mut() {
+        if maybe_key_controlled.is_some() {
+            if board.virus_count() < 1 {
+                commands.spawn(MenuTitle::Victory);
+                commands.spawn_batch([
+                    (MenuOption::NextLevel),
+                    (MenuOption::Exit)
+                ]);
+                config.max_viruses *= 2;
+                if config.drop_period > 0.2 {
+                    config.drop_period -= 0.1;
+                }
+            } else {
+                commands.spawn(MenuTitle::GameOver);
+                commands.spawn_batch([
+                    (MenuOption::Play),
+                    (MenuOption::Exit)
+                ]);
+                commands.entity(entity).insert(BoardConfig::default());
+            }
         }
-    } else {
-        commands.spawn(MenuTitle::GameOver);
-        commands.spawn_batch([
-            (MenuOption::Play),
-            (MenuOption::Exit)
-        ]);
-        commands.entity(entity).insert(BoardConfig::default());
     }
-    state.set(GameState::NotStarted);
-}
-
-fn handle_finished(
-    mut app_state: ResMut<NextState<AppState>>,
-) {
+    game_state.set(GameState::NotStarted);
     app_state.set(AppState::Menu);
-}
-
-fn cleanup_game(
-    mut commands: Commands,
-    board_query: Query<Entity, With<GameBoard>>,
-    next_pill: Query<Entity, With<NextPill>>,
-) {
-    for ent in board_query.iter() {
-        commands.entity(ent).despawn_descendants();
-    }
-    for ent in next_pill.iter() {
-        commands.entity(ent).despawn_recursive();
-    }
 }
 
 fn pause_game(
     mut commands: Commands,
     mut state: ResMut<NextState<AppState>>,
+    mut game_state: ResMut<NextState<GameState>>,
     input: Res<Input<KeyCode>>,
 ) {
     if input.just_pressed(KeyCode::Space) {
         commands.spawn(MenuOption::Play);
         state.set(AppState::Menu);
+        game_state.set(GameState::Paused);
     }
 }
 
 fn startup_finished(
     mut commands: Commands,
-    mut game_state: ResMut<NextState<GameState>>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     asset_server: Res<AssetServer>,
     sidebar_container: Res<SidebarContainer>
@@ -215,7 +204,6 @@ fn startup_finished(
         (MenuOption::Play),
         (MenuOption::Exit),
     ]);
-    game_state.set(GameState::Starting);
 }
 
 #[derive(Component)]
@@ -327,8 +315,10 @@ fn menu(
                 let mut text = text_query.get_mut(children[0]).unwrap();
                 *background_color = Color::DARK_GRAY.into();
                 text.sections[0].style.color = Color::PINK.into();
-                if curr_game_state.get() == &GameState::Finished {
-                    game_state.set(GameState::Starting);
+                match curr_game_state.get() {
+                    GameState::Finished | GameState::NotStarted => game_state.set(GameState::Starting),
+                    GameState::Paused => game_state.set(GameState::Active),
+                    _ => {},
                 }
                 app_state.set(AppState::InGame);
             },
@@ -454,6 +444,12 @@ fn setup_ui_grid(
         })
         .add_child(sidebar);
     commands.insert_resource(SidebarContainer(sidebar));
+    //commands.insert_resource(ContentContainer(content));
+}
+
+fn spawn_game_boards(
+    mut commands: Commands,
+){
     let config = BoardConfig::default();
     let (rows, cols) = config.board_size;
     commands
@@ -468,9 +464,9 @@ fn setup_ui_grid(
                 ..default()
             },
             config,
+            KeyControlled,
             ScorePolicy::default(),
         ));
-    //commands.insert_resource(ContentContainer(content));
 }
 
 /// Put components here
@@ -523,11 +519,9 @@ fn main() {
         .add_event::<PillSpawned>()
         .add_event::<VirusCleared>()
         .add_systems(Startup, (setup_resources, setup_camera, setup_ui_grid.after(setup_resources)))
-        .add_systems(PostStartup, startup_finished)
+        .add_systems(PostStartup, (startup_finished, spawn_game_boards))
         .add_systems(OnEnter(AppState::Menu), setup_menu)
         .add_systems(OnExit(AppState::Menu), cleanup_menu)
-        .add_systems(OnEnter(GameState::Finished), handle_finished)
-        .add_systems(OnExit(GameState::Finished), (cleanup_game, /*cleanup_ui*/))
         .add_systems(
             Update, 
             (

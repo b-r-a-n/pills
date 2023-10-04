@@ -14,6 +14,7 @@ impl Plugin for GamePlugin {
             .add_systems(OnEnter(GameState::Starting), start_game)
             .add_systems(OnExit(GameState::Starting), (spawn_viruses, spawn_pill))
             .add_systems(OnEnter(GameState::Finished), send_results)
+            .add_systems(OnExit(GameState::Finished), reset_game)
             .add_systems(Update, (
                 add_pill_to_board, 
                 spawn_pill, 
@@ -25,7 +26,7 @@ impl Plugin for GamePlugin {
                 clear_matches,
                 clear_cleared,
                 mark_finished,
-                sync_with_board))
+                sync_with_board).run_if(in_state(GameState::Active)))
             ;
     }
 }
@@ -49,15 +50,35 @@ impl BoardBundle {
 #[derive(Event)]
 pub struct BoardResult;
 
+fn reset_game(
+    mut commands: Commands,
+    boards: Query<Entity, With<GameBoard>>,
+    pieces: Query<(Entity, &InBoard)>
+) {
+    for board_ent in boards.iter() {
+        info!("[reset_game] Resetting board: {:?}", board_ent);
+        commands.entity(board_ent)
+            .remove::<(NeedsDrop, NeedsFall, NeedsSpawn, NeedsPill, NeedsResolve, NeedsSync, FallTimer, ResolveTimer, GameBoard, Move, Drop, Rotate, Finished)>();
+        commands.entity(board_ent).despawn_descendants();
+        for (ent, in_board_ent) in pieces.iter() {
+            if in_board_ent.0 == board_ent {
+                commands.entity(ent).despawn_recursive();
+            }
+        }
+    }
+}
+
 fn start_game(
     mut commands: Commands,
     mut state: ResMut<NextState<GameState>>,
     query: Query<(Entity, &BoardConfig), Without<GameBoard>>,
 ) {
     for (entity, config) in query.iter() {
+        info!("[start_game] Adding board bundle to entity: {:?}", entity);
         commands.entity(entity)
             .insert(BoardBundle::with_config(config))
-            .insert(NeedsPill);
+            .insert(NeedsPill)
+            .insert(NeedsSpawn);
     }
     state.set(GameState::Active);
 }
@@ -65,16 +86,21 @@ fn start_game(
 fn mark_finished(
     mut commands: Commands,
     mut state: ResMut<NextState<GameState>>,
-    query: Query<(Entity, &GameBoard), Without<Finished>>,
+    query: Query<(Entity, &GameBoard, Option<&Finished>)>,
     
 ) {
-    if query.is_empty() {
-        state.set(GameState::Finished);
-    }
-    for (entity, board) in query.iter() {
-        if board.virus_count() < 1 {
+    let (mut finished_count, mut total_count) = (0, 0);
+    for (entity, board, maybe_finished) in query.iter() {
+        total_count += 1;
+        if maybe_finished.is_some() {
+            finished_count += 1;
+        } else if board.virus_count() < 1 {
+            finished_count += 1;
             commands.entity(entity).insert(Finished::Win);
         }
+    }
+    if finished_count == total_count && total_count > 0 {
+        state.set(GameState::Finished);
     }
 }
 
@@ -90,7 +116,6 @@ fn spawn_viruses(
 ) {
     for (entity, config, mut board) in query.iter_mut() {
         commands.entity(entity).with_children(|builder|{
-            // Spawn the viruses
             let mut virus_count = config.max_viruses;
             for row in 0..(board.rows-1) as u8 {
                 for col in 0..board.cols as u8 {
@@ -105,7 +130,8 @@ fn spawn_viruses(
                             };
                             let ent = builder.spawn((
                                 Virus(color), 
-                                BoardPosition { row, column: col }
+                                BoardPosition { row, column: col },
+                                InBoard(entity),
                             )).id();
                             board.set(row as usize, col as usize, Cell::Virus(ent, color));
                             virus_count -= 1;
@@ -123,49 +149,53 @@ fn spawn_viruses(
 
 fn spawn_pill(
     mut commands: Commands,
-    query: Query<Entity, (With<GameBoard>, With<NeedsPill>)>
+    query: Query<Entity, (With<GameBoard>, With<NeedsSpawn>)>
 ) {
     for entity in query.iter() {
+        info!("[spawn_pill] Spawning pill for board: {:?}", entity);
         commands.spawn_batch([
             (Pill(rand_color()), NextPill(0), InBoard(entity)),
             (Pill(rand_color()), NextPill(1), InBoard(entity)),
         ]);
-        commands.entity(entity).remove::<NeedsPill>();
+        commands.entity(entity).remove::<NeedsSpawn>();
     }
 }
 
 fn add_pill_to_board(
     mut commands: Commands,
-    mut boards_query: Query<(Entity, &mut GameBoard), (Without<NeedsPill>, Without<NeedsDrop>)>,
-    pieces_query: Query<(Entity, &Pill, &NextPill), With<InBoard>>
+    mut boards: Query<(Entity, &mut GameBoard), (With<NeedsPill>, Without<NeedsSpawn>, Without<NeedsDrop>, Without<NeedsSync>)>,
+    next_pieces: Query<(Entity, &Pill, &NextPill, &InBoard)>
 ) {
-    for (entity, mut board) in boards_query.iter_mut() {
-        let (row, col) = (board.rows-1, board.cols/2-1);
-        for (piece_ent, pill, piece_index) in pieces_query.iter() {
+    // For each pill marked with NextPill
+    for (piece_ent, pill, piece_index, board_ent) in next_pieces.iter() {
+        if let Ok((board_ent, mut board)) = boards.get_mut(**board_ent) {
+            info!("[add_pill_to_board] Adding pill to board: {:?}", board_ent);
+            let (row, col) = (board.rows-1, board.cols/2-1);
             let col = col + piece_index.0 as usize;
             let orientation = if piece_index.0 == 0 { 
                 Some(Orientation::Right) 
             } else { 
                 Some(Orientation::Left) 
             };
-            if board.get(row, col) != Cell::Empty {
-                commands.entity(entity).insert(Finished::Loss);
-                break;
+            if board.get(col, row) != Cell::Empty {
+                commands.entity(board_ent).insert(Finished::Loss);
+                continue;
             }
             board.set(row, col, Cell::Pill(piece_ent, pill.0, orientation));
             commands.entity(piece_ent)
                 .remove::<NextPill>()
                 .insert(BoardPosition { row: row as u8, column: col as u8 })
-                .insert(InBoard(entity))
-                .set_parent(entity);
+                .insert(InBoard(board_ent))
+                .set_parent(board_ent);
             if piece_index.0 == 1 {
                 commands.entity(piece_ent)
                     .insert(PivotPiece);
             }
+            commands.entity(board_ent)
+                .remove::<NeedsPill>()
+                .insert(NeedsDrop)
+                .insert(NeedsSpawn);
         }
-        commands.entity(entity)
-            .insert(NeedsDrop)
-            .insert(NeedsPill);
     }
 }
 
@@ -178,6 +208,7 @@ fn resolve_timer(
         if timer.tick(time.delta()).just_finished() { 
             commands.entity(entity)
                 .insert(NeedsFall)
+                .remove::<ResolveTimer>()
                 .remove::<NeedsResolve>();
         }
     }
@@ -203,12 +234,12 @@ fn clear_matches(
         let next_board = board.resolve(|l, r| l.color() == r.color());
         if next_board == **board {
             commands.entity(entity)
-                .insert(NeedsDrop)
+                .insert(NeedsPill)
                 .remove::<NeedsResolve>();
             return;
         }
         commands.entity(entity)
-            .insert(ResolveTimer(Timer::from_seconds(0.2, TimerMode::Once)));
+            .insert(ResolveTimer(Timer::from_seconds(0.4, TimerMode::Once)));
         for row in 0..board.rows {
             for col in 0..board.cols {
                 if next_board.get(row, col) == Cell::Empty {
@@ -217,14 +248,16 @@ fn clear_matches(
                             commands.entity(ent).despawn_recursive();
                             commands.spawn((
                                 BoardPosition { row: row as u8, column: col as u8 },
-                                ClearedCell {color, was_virus: false}
+                                ClearedCell {color, was_virus: false},
+                                InBoard(entity),
                             )).set_parent(entity);
                         },
                         Cell::Virus(ent, color) => {
                             commands.entity(ent).despawn_recursive();
                             commands.spawn((
                                 BoardPosition { row: row as u8, column: col as u8 },
-                                ClearedCell {color, was_virus: true}
+                                ClearedCell {color, was_virus: true},
+                                InBoard(entity)
                             )).set_parent(entity);
                         },
                         _ => {},
@@ -239,27 +272,28 @@ fn clear_matches(
 fn move_pill(
     mut commands: Commands,
     query: Query<(Entity, &BoardPosition, &InBoard, &Move), With<PivotPiece>>,
-    mut board_query: Query<&mut GameBoard>,
+    mut board_query: Query<&mut GameBoard, Without<NeedsSync>>,
 ) {
     for (entity, pos, board_entity, movement) in query.iter() {
-        let mut board = board_query.get_mut(**board_entity).unwrap();
-        let from = (pos.row as usize, pos.column as usize);
-        let mut to = (pos.row as usize, pos.column as usize);
-        match movement {
-            Move::Left => {
-                if pos.column > 0 {
-                    to.1 -= 1;
-                }
-            },
-            Move::Right => {
-                if (pos.column as usize) < board.cols - 1 {
-                    to.1 += 1;
-                }
-            },
-        }
-        if board.move_pill(from, to) {
-            commands.entity(entity).remove::<Move>();
-            commands.entity(**board_entity).insert(NeedsSync);
+        if let Ok(mut board) = board_query.get_mut(**board_entity) {
+            let from = (pos.row as usize, pos.column as usize);
+            let mut to = (pos.row as usize, pos.column as usize);
+            match movement {
+                Move::Left => {
+                    if pos.column > 0 {
+                        to.1 -= 1;
+                    }
+                },
+                Move::Right => {
+                    if (pos.column as usize) < board.cols - 1 {
+                        to.1 += 1;
+                    }
+                },
+            }
+            if board.move_pill(from, to) {
+                commands.entity(entity).remove::<Move>();
+                commands.entity(**board_entity).insert(NeedsSync);
+            }
         }
     }
 }
@@ -267,39 +301,43 @@ fn move_pill(
 fn rotate_pill(
     mut commands: Commands,
     query: Query<(Entity, &BoardPosition, &InBoard, &Rotate), With<PivotPiece>>,
-    mut board_query: Query<&mut GameBoard>,
+    mut board_query: Query<&mut GameBoard, Without<NeedsSync>>,
 ) {
     for (entity, pos, board_entity, rotation) in query.iter() {
-        let mut board = board_query.get_mut(**board_entity).unwrap();
-        let from = (pos.row as usize, pos.column as usize);
-        let to = match rotation { Rotate::Left => Orientation::Left, Rotate::Right => Orientation::Right };
-        if board.rotate_pill(from, to) { 
-            commands.entity(entity).remove::<Rotate>();
-            commands.entity(**board_entity).insert(NeedsSync);
-        } 
+        if let Ok(mut board) = board_query.get_mut(**board_entity) {
+            let from = (pos.row as usize, pos.column as usize);
+            let to = match rotation { Rotate::Left => Orientation::Left, Rotate::Right => Orientation::Right };
+            if board.rotate_pill(from, to) { 
+                commands.entity(entity).remove::<Rotate>();
+                commands.entity(**board_entity).insert(NeedsSync);
+            } 
+        }
     }
 }
 
 fn drop_pill(
     mut commands: Commands,
     query: Query<(Entity, &BoardPosition, &InBoard), (With<PivotPiece>, With<Drop>)>,
-    mut board_query: Query<&mut GameBoard>,
+    mut board_query: Query<&mut GameBoard, Without<NeedsSync>>,
 ) {
     for (entity, pos, board_entity) in query.iter() {
-        let mut board = board_query.get_mut(**board_entity).unwrap();
-        if pos.row > 0 && board.move_pill((pos.row as usize, pos.column as usize), (pos.row as usize - 1, pos.column as usize)) {
-            commands.entity(entity).remove::<Drop>();
-            commands.entity(**board_entity).insert(NeedsSync);
-        } else {
-            commands.entity(entity).remove::<PivotPiece>();
-            commands.entity(**board_entity).insert(NeedsResolve);
+        if let Ok(mut board) = board_query.get_mut(**board_entity) {
+            if pos.row > 0 && board.move_pill((pos.row as usize, pos.column as usize), (pos.row as usize - 1, pos.column as usize)) {
+                commands.entity(entity).remove::<Drop>();
+                commands.entity(**board_entity).insert(NeedsSync);
+            } else {
+                commands.entity(entity).remove::<PivotPiece>();
+                commands.entity(**board_entity)
+                    .remove::<NeedsDrop>()
+                    .insert(NeedsResolve);
+            }
         }
     }
 }
 
 fn drop_pieces(
     mut commands: Commands,
-    mut board: Query<(Entity, &mut GameBoard, &mut FallTimer), With<NeedsFall>>,
+    mut board: Query<(Entity, &mut GameBoard, &mut FallTimer), (With<NeedsFall>, Without<NeedsSync>)>,
     time: Res<Time>,
 ) {
     for (entity, mut board, mut timer) in board.iter_mut() {
@@ -325,9 +363,17 @@ fn sync_with_board(
     for (board_entity, board) in board_query.iter() {
         for row in 0..board.rows {
             for col in 0..board.cols {
-                if let Cell::Pill(pill_ent, _, _) = board.get(row, col) {
+                if let Cell::Pill(pill_ent, _, maybe_orientation) = board.get(row, col) {
                     if let Ok(mut pos) = position_query.get_mut(pill_ent) {
-                        pos.set_if_neq(BoardPosition { row: row as u8, column: col as u8 });
+                        // TODO: This is to handle the case where the pill is in the middle of a rotation
+                        // Since there is no orientation component, the renderer just uses the board data to get orientation
+                        // However, only one piece moves during a rotation, so the other piece will be out of sync w.r.t its rotation
+                        if maybe_orientation.is_some() {
+                            pos.row = row as u8;
+                            pos.column = col as u8;
+                        } else {
+                            pos.set_if_neq(BoardPosition { row: row as u8, column: col as u8 });
+                        }
                     }
                 }
             }
@@ -336,25 +382,25 @@ fn sync_with_board(
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub enum Move {
     Left,
     Right,
 }
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub struct Drop;
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub enum Rotate {
     Left,
     Right
 }
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 struct NeedsResolve;
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 struct NeedsSync;
 
 #[derive(Component)]
@@ -363,16 +409,19 @@ pub struct PivotPiece;
 #[derive(Component, Deref, DerefMut)]
 pub struct InBoard(pub Entity);
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 struct NeedsPill;
 
-#[derive(Component)]
+#[derive(Component, Debug)]
+struct NeedsSpawn;
+
+#[derive(Component, Debug)]
 struct NeedsDrop;
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 struct NeedsFall;
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 enum Finished {
     Win,
     Loss,
@@ -421,6 +470,7 @@ pub enum GameState {
     NotStarted,
     Starting,
     Active,
+    Paused,
     //PillDropping,
     //Resolving,
     //PiecesFalling,
