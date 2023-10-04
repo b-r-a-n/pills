@@ -40,6 +40,7 @@ pills_pieces.workspace = true
 pills_score.workspace = true
 pills_core.workspace = true
 pills_input.workspace = true
+pills_sound.workspace = true
 bevy.workspace = true
 rand.workspace = true
 
@@ -50,6 +51,7 @@ pills_pieces = { path = "crates/pieces", version = "0.1.0-dev" }
 pills_score = { path = "crates/score", version = "0.1.0-dev" }
 pills_core = { path = "crates/core", version = "0.1.0-dev" }
 pills_input = { path = "crates/input", version = "0.1.0-dev" }
+pills_sound = { path = "crates/sound", version = "0.1.0-dev" }
 
 bevy = "0.11"
 rand = "*"

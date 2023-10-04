@@ -1,0 +1,11 @@
+[package]
+name = "pills_sound"
+
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+bevy.workspace = true
+pills_core.workspace = true

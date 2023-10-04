@@ -11,6 +11,8 @@ impl Plugin for GamePlugin {
         app
             .add_state::<GameState>()
             .add_event::<BoardResult>()
+            .add_event::<PillEvent>()
+            .add_event::<ClearEvent>()
             .add_systems(OnEnter(GameState::Starting), start_game)
             .add_systems(OnExit(GameState::Starting), (spawn_viruses, spawn_pill))
             .add_systems(OnEnter(GameState::Finished), send_results)
@@ -229,6 +231,7 @@ fn clear_cleared(
 fn clear_matches(
     mut commands: Commands,
     mut board_query: Query<(Entity, &mut GameBoard), (With<NeedsResolve>, Without<ResolveTimer>)>,
+    mut events: EventWriter<ClearEvent>,
 ) {
     for (entity, mut board) in board_query.iter_mut() {
         let next_board = board.resolve(|l, r| l.color() == r.color());
@@ -265,14 +268,16 @@ fn clear_matches(
                 }
             }
         }
+        events.send(ClearEvent(entity));
         **board = next_board;
     }
 }
 
 fn move_pill(
     mut commands: Commands,
-    query: Query<(Entity, &BoardPosition, &InBoard, &Move), With<PivotPiece>>,
     mut board_query: Query<&mut GameBoard, Without<NeedsSync>>,
+    mut events: EventWriter<PillEvent>,
+    query: Query<(Entity, &BoardPosition, &InBoard, &Move), With<PivotPiece>>,
 ) {
     for (entity, pos, board_entity, movement) in query.iter() {
         if let Ok(mut board) = board_query.get_mut(**board_entity) {
@@ -293,6 +298,7 @@ fn move_pill(
             if board.move_pill(from, to) {
                 commands.entity(entity).remove::<Move>();
                 commands.entity(**board_entity).insert(NeedsSync);
+                events.send(PillEvent::PillMoved(entity));
             }
         }
     }
@@ -300,8 +306,9 @@ fn move_pill(
 
 fn rotate_pill(
     mut commands: Commands,
-    query: Query<(Entity, &BoardPosition, &InBoard, &Rotate), With<PivotPiece>>,
     mut board_query: Query<&mut GameBoard, Without<NeedsSync>>,
+    mut events: EventWriter<PillEvent>,
+    query: Query<(Entity, &BoardPosition, &InBoard, &Rotate), With<PivotPiece>>,
 ) {
     for (entity, pos, board_entity, rotation) in query.iter() {
         if let Ok(mut board) = board_query.get_mut(**board_entity) {
@@ -310,6 +317,7 @@ fn rotate_pill(
             if board.rotate_pill(from, to) { 
                 commands.entity(entity).remove::<Rotate>();
                 commands.entity(**board_entity).insert(NeedsSync);
+                events.send(PillEvent::PillRotated(entity))
             } 
         }
     }
@@ -486,3 +494,12 @@ struct ResolveTimer(pub Timer);
 
 #[derive(Component, Deref, DerefMut)]
 pub struct GameBoard(pub Board<Entity>);
+
+#[derive(Event, Debug)]
+pub enum PillEvent {
+    PillMoved(Entity),
+    PillRotated(Entity),
+}
+
+#[derive(Event, Debug)]
+pub struct ClearEvent(Entity);

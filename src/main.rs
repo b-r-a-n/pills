@@ -6,6 +6,7 @@ use pills_auras::*;
 use pills_pieces::*;
 use pills_core::*;
 use pills_input::*;
+use pills_sound::*;
 
 #[derive(Component, Deref, DerefMut)]
 struct CellComponent(Cell<Entity>);
@@ -35,11 +36,6 @@ fn setup_resources(
     let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 1, 6, None, None);
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
     commands.insert_resource(PieceAtlasHandle(texture_atlas_handle));
-
-    let move_sound_handle = asset_server.load("sounds/move.ogg");
-    let rotate_sound_handle = asset_server.load("sounds/rotate.ogg");
-    let pop_sound_handle = asset_server.load("sounds/pop.ogg");
-    commands.insert_resource(PillSounds { move_sound_handle, rotate_sound_handle, pop_sound_handle });
 }
 
 const CELL_SIZE: f32 = 32.0;
@@ -361,56 +357,6 @@ fn cleanup_menu(
     commands.entity(menu.button_entity).despawn_recursive();
 }
 
-#[derive(Event)]
-enum PillEvent {
-    PillMoved,
-    PillRotated,
-}
-
-#[derive(Resource)]
-struct PillSounds{
-    move_sound_handle: Handle<AudioSource>, 
-    rotate_sound_handle: Handle<AudioSource>,
-    pop_sound_handle: Handle<AudioSource>,
-}
-
-fn play_pill_sound(
-    mut commands: Commands,
-    mut events: EventReader<PillEvent>,
-    sound_handles: Res<PillSounds>,
-) {
-    if events.is_empty() { return }
-    for event in events.iter() {
-        match event {
-            PillEvent::PillMoved => {
-                commands.spawn(AudioBundle {
-                    source: sound_handles.move_sound_handle.clone(),
-                    settings: PlaybackSettings::DESPAWN,
-                });
-            }
-            PillEvent::PillRotated =>  {
-                commands.spawn(AudioBundle {
-                    source: sound_handles.rotate_sound_handle.clone(),
-                    settings: PlaybackSettings::DESPAWN,
-                });
-            }
-        }
-    }
-    events.clear();
-}
-
-fn play_clear_sound(
-    mut commands: Commands,
-    mut events: EventReader<ClearEvent>,
-    sound_handles: Res<PillSounds>,
-) {
-    if events.is_empty() { return }
-    commands.spawn(AudioBundle {
-        source: sound_handles.pop_sound_handle.clone(),
-        settings: PlaybackSettings::DESPAWN,
-    });
-    events.clear();
-}
 
 #[derive(Resource, Deref, DerefMut)]
 struct ContentContainer(Entity);
@@ -478,24 +424,6 @@ struct MenuData {
     button_entity: Entity,
 }
 
-#[derive(Debug, Event)]
-enum MoveEvent {
-    Left,
-    Right,
-}
-
-#[derive(Debug, Event)]
-struct DropEvent;
-
-#[derive(Debug, Event)]
-struct ClearEvent;
-
-#[derive(Debug, Event)]
-struct PillSpawned;
-
-#[derive(Debug, Deref, DerefMut, Event)]
-struct VirusCleared(CellColor);
-
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
 enum AppState {
     #[default]
@@ -510,14 +438,8 @@ fn main() {
         //.add_plugins(ScorePlugin)
         .add_plugins(GamePlugin)
         .add_plugins(InputPlugin)
+        .add_plugins(SoundPlugin)
         .add_state::<AppState>()
-        .add_state::<GameState>()
-        .add_event::<MoveEvent>()
-        .add_event::<DropEvent>()
-        .add_event::<PillEvent>()
-        .add_event::<ClearEvent>()
-        .add_event::<PillSpawned>()
-        .add_event::<VirusCleared>()
         .add_systems(Startup, (setup_resources, setup_camera, setup_ui_grid.after(setup_resources)))
         .add_systems(PostStartup, (startup_finished, spawn_game_boards))
         .add_systems(OnEnter(AppState::Menu), setup_menu)
@@ -527,7 +449,6 @@ fn main() {
             (
                 add_sprites, 
                 handle_game_result,
-                (play_pill_sound, play_clear_sound).run_if(in_state(AppState::InGame)),
                 pause_game.run_if(in_state(AppState::InGame)),
                 menu.run_if(in_state(AppState::Menu)),
                 bevy::window::close_on_esc))

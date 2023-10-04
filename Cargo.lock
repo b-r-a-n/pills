@@ -2568,6 +2568,7 @@ dependencies = [
  "pills_input",
  "pills_pieces",
  "pills_score",
+ "pills_sound",
  "rand",
 ]
 
@@ -2593,6 +2594,14 @@ dependencies = [
 
 [[package]]
 name = "pills_score"
+version = "0.1.0-dev"
+dependencies = [
+ "bevy",
+ "pills_core",
+]
+
+[[package]]
+name = "pills_sound"
 version = "0.1.0-dev"
 dependencies = [
  "bevy",
