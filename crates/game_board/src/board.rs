@@ -70,7 +70,7 @@ impl<T: Clone + Copy + PartialEq> Cell<T> {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, PartialEq)]
 pub struct Board<T: Clone + Copy + PartialEq> {
     pub rows: usize,
     pub cols: usize,

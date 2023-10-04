@@ -2548,12 +2548,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pills_core"
+version = "0.1.0-dev"
+dependencies = [
+ "bevy",
+ "pills_game_board",
+ "pills_pieces",
+ "rand",
+]
+
+[[package]]
 name = "pills_game"
 version = "0.1.0-dev"
 dependencies = [
  "bevy",
  "pills_auras",
+ "pills_core",
  "pills_game_board",
+ "pills_input",
  "pills_pieces",
  "pills_score",
  "rand",
@@ -2562,6 +2574,14 @@ dependencies = [
 [[package]]
 name = "pills_game_board"
 version = "0.1.0-dev"
+
+[[package]]
+name = "pills_input"
+version = "0.1.0-dev"
+dependencies = [
+ "bevy",
+ "pills_core",
+]
 
 [[package]]
 name = "pills_pieces"
@@ -2576,6 +2596,7 @@ name = "pills_score"
 version = "0.1.0-dev"
 dependencies = [
  "bevy",
+ "pills_core",
 ]
 
 [[package]]

@@ -38,6 +38,8 @@ pills_game_board.workspace = true
 pills_auras.workspace = true
 pills_pieces.workspace = true
 pills_score.workspace = true
+pills_core.workspace = true
+pills_input.workspace = true
 bevy.workspace = true
 rand.workspace = true
 
@@ -46,6 +48,8 @@ pills_game_board = { path = "crates/game_board", version = "0.1.0-dev" }
 pills_auras = { path = "crates/auras", version = "0.1.0-dev" }
 pills_pieces = { path = "crates/pieces", version = "0.1.0-dev" }
 pills_score = { path = "crates/score", version = "0.1.0-dev" }
+pills_core = { path = "crates/core", version = "0.1.0-dev" }
+pills_input = { path = "crates/input", version = "0.1.0-dev" }
 
 bevy = "0.11"
 rand = "*"

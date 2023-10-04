@@ -1,5 +1,5 @@
 [package]
-name = "pills_score"
+name = "pills_input"
 
 version.workspace = true
 edition.workspace = true

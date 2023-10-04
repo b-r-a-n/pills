@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use pills_game_board::CellColor;
 
-#[derive(Component)]
+#[derive(Component, PartialEq)]
 pub struct BoardPosition {
     pub row: u8,
     pub column: u8,
