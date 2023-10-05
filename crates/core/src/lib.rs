@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use bevy::{app::PluginGroupBuilder, prelude::PluginGroup};
 use pills_game_board::*;
-use pills_pieces::*;
 use rand::{thread_rng, Rng};
+pub use pills_pieces::*;
 
 pub struct GamePlugin;
 
@@ -414,9 +414,6 @@ struct NeedsSync;
 #[derive(Component)]
 pub struct PivotPiece;
 
-#[derive(Component, Deref, DerefMut)]
-pub struct InBoard(pub Entity);
-
 #[derive(Component, Debug)]
 struct NeedsPill;
 
@@ -491,9 +488,6 @@ pub struct FallTimer(pub Timer);
 
 #[derive(Component, Deref, DerefMut)]
 struct ResolveTimer(pub Timer);
-
-#[derive(Component, Deref, DerefMut)]
-pub struct GameBoard(pub Board<Entity>);
 
 #[derive(Event, Debug)]
 pub enum PillEvent {
