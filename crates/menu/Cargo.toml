@@ -1,0 +1,12 @@
+[package]
+name = "pills_menu"
+
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+bevy.workspace = true
+pills_core.workspace = true
+pills_input.workspace = true

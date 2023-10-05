@@ -7,6 +7,7 @@ use pills_pieces::*;
 use pills_core::*;
 use pills_input::*;
 use pills_sound::*;
+use pills_menu::*;
 
 #[derive(Component, Deref, DerefMut)]
 struct CellComponent(Cell<Entity>);
@@ -105,7 +106,6 @@ fn add_sprites(
             CellColor::GREEN => YELLOW_COLOR,
             CellColor::PURPLE => BLUE_COLOR,
         };
-        info!("Adding sprite for cleared cell {:?}", entity);
         commands.entity(entity)
             .insert(SpriteSheetBundle {
                 sprite: TextureAtlasSprite { index: 3, color, ..default()},
@@ -122,7 +122,6 @@ fn update_transforms(
 ) {
     for (entity, board_position, mut transform, board) in query.iter_mut() {
         let board = boards.get(**board).unwrap();
-        info!("Setting transform for {:?}", entity);
         transform.translation.x = (board_position.column as f32 * CELL_SIZE) - (CELL_SIZE * board.cols as f32) / 2.0 + CELL_SIZE / 2.0;
         transform.translation.y = (board_position.row as f32 * CELL_SIZE) - (CELL_SIZE * board.rows as f32) / 2.0 + CELL_SIZE / 2.0;
         if let Some(orientation) = board
@@ -138,52 +137,7 @@ fn update_transforms(
     }
 }
 
-fn handle_game_result(
-    mut commands: Commands,
-    event: EventReader<BoardResult>,
-    mut game_state: ResMut<NextState<GameState>>,
-    mut app_state: ResMut<NextState<AppState>>,
-    mut boards: Query<(Entity, &GameBoard, &mut BoardConfig, Option<&KeyControlled>)>, 
-) {
-    if event.is_empty() { return }
-    for (entity, board, mut config, maybe_key_controlled) in boards.iter_mut() {
-        if maybe_key_controlled.is_some() {
-            if board.virus_count() < 1 {
-                commands.spawn(MenuTitle::Victory);
-                commands.spawn_batch([
-                    (MenuOption::NextLevel),
-                    (MenuOption::Exit)
-                ]);
-                config.max_viruses *= 2;
-                if config.drop_period > 0.2 {
-                    config.drop_period -= 0.1;
-                }
-            } else {
-                commands.spawn(MenuTitle::GameOver);
-                commands.spawn_batch([
-                    (MenuOption::Play),
-                    (MenuOption::Exit)
-                ]);
-                commands.entity(entity).insert(BoardConfig::default());
-            }
-        }
-    }
-    game_state.set(GameState::NotStarted);
-    app_state.set(AppState::Menu);
-}
 
-fn pause_game(
-    mut commands: Commands,
-    mut state: ResMut<NextState<AppState>>,
-    mut game_state: ResMut<NextState<GameState>>,
-    input: Res<Input<KeyCode>>,
-) {
-    if input.just_pressed(KeyCode::Space) {
-        commands.spawn(MenuOption::Play);
-        state.set(AppState::Menu);
-        game_state.set(GameState::Paused);
-    }
-}
 
 fn startup_finished(
     mut commands: Commands,
@@ -196,166 +150,9 @@ fn startup_finished(
     // It should probably be moved into the plugin itself
     let layout_ent = spawn_layout(&mut commands, &asset_server, &mut texture_atlases);
     commands.entity(sidebar_container.0).add_child(layout_ent);
-    commands.spawn_batch([
-        (MenuOption::Play),
-        (MenuOption::Exit),
-    ]);
 }
 
-#[derive(Component)]
-enum MenuOption {
-    Play,
-    NextLevel,
-    Exit,
-}
 
-#[derive(Component)]
-enum MenuTitle {
-    GameOver,
-    Victory,
-    Custom(String),
-}
-
-impl Into<String> for &MenuOption {
-    fn into(self) -> String {
-        match self {
-            MenuOption::Play => "Play".to_string(),
-            MenuOption::NextLevel => "Next Level".to_string(),
-            MenuOption::Exit => "Exit".to_string(),
-        }
-    }
-}
-
-fn setup_menu(
-    mut commands: Commands,
-    query: Query<(Entity, &MenuOption)>,
-    title_query: Query<(Entity, &MenuTitle)>,
-) {
-    let button_entity = commands
-        .spawn(NodeBundle {
-            style: Style {
-                position_type: PositionType::Absolute,
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                flex_direction: FlexDirection::Column,
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()},
-            background_color: Color::BLACK.into(),
-            ..default()})
-        .id();
-    for (entity, title) in &title_query {
-        commands.entity(entity).insert(
-            TextBundle {
-                text: Text {
-                    sections: vec![TextSection {
-                        value: match title { 
-                            MenuTitle::GameOver => "Game Over".to_string(), 
-                            MenuTitle::Victory => "Victory".to_string(),
-                            MenuTitle::Custom(text) => text.clone(),
-                        },
-                        style: TextStyle {
-                            font_size: 80.0,
-                            color: Color::WHITE.into(),
-                            ..default()
-                        },
-                    }],
-                    alignment: TextAlignment::Center,
-                    linebreak_behavior: bevy::text::BreakLineOn::NoWrap,
-                },
-                ..default()
-            })
-            .set_parent(button_entity);
-    }
-    for (entity, option) in &query {
-        commands.entity(entity).insert(ButtonBundle {
-            style: Style {
-                width: Val::Px(400.0),
-                height: Val::Px(80.0),
-                border: UiRect::all(Val::Px(2.0)),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            border_color: Color::WHITE.into(),
-            background_color: Color::BLACK.into(),
-            ..default()
-        })
-        .with_children(|parent| {
-            parent.spawn( TextBundle::from_section(
-                option,
-                TextStyle {
-                    font_size: 40.0,
-                    color: Color::WHITE.into(),
-                    ..default()
-                }));
-            })
-        .set_parent(button_entity);
-    }
-    commands.insert_resource(MenuData { button_entity });
-
-}
-
-fn menu(
-    mut commands: Commands,
-    mut interaction_query: Query<(&Interaction, &MenuOption, &mut BackgroundColor, &Children), (Changed<Interaction>, With<Button>)>,
-    mut text_query: Query<&mut Text>,
-    mut app_state: ResMut<NextState<AppState>>,
-    curr_game_state: Res<State<GameState>>,
-    mut game_state: ResMut<NextState<GameState>>,
-    focused_windows: Query<(Entity, &Window)>,
-){
-    for (interaction, option, mut background_color, children) in &mut interaction_query {
-        match (interaction, option) {
-            (Interaction::Pressed, MenuOption::Play) => {
-                let mut text = text_query.get_mut(children[0]).unwrap();
-                *background_color = Color::DARK_GRAY.into();
-                text.sections[0].style.color = Color::PINK.into();
-                match curr_game_state.get() {
-                    GameState::Finished | GameState::NotStarted => game_state.set(GameState::Starting),
-                    GameState::Paused => game_state.set(GameState::Active),
-                    _ => {},
-                }
-                app_state.set(AppState::InGame);
-            },
-            (Interaction::Pressed, MenuOption::NextLevel) => {
-                let mut text = text_query.get_mut(children[0]).unwrap();
-                *background_color = Color::DARK_GRAY.into();
-                text.sections[0].style.color = Color::PINK.into();
-                game_state.set(GameState::Starting);
-                app_state.set(AppState::InGame);
-            },
-            (Interaction::Pressed, MenuOption::Exit) => {
-                let mut text = text_query.get_mut(children[0]).unwrap();
-                *background_color = Color::DARK_GRAY.into();
-                text.sections[0].style.color = Color::PINK.into();
-                for (window, focus) in focused_windows.iter() {
-                    if !focus.focused {
-                        continue;
-                    }
-                    commands.entity(window).despawn();
-                }
-            },
-            (Interaction::Hovered, _) => {
-                let mut text = text_query.get_mut(children[0]).unwrap();
-                *background_color = Color::BLACK.into();
-                text.sections[0].style.color = Color::YELLOW.into();
-            },
-            (Interaction::None, _) => {
-                let mut text = text_query.get_mut(children[0]).unwrap();
-                *background_color = Color::BLACK.into();
-                text.sections[0].style.color = Color::WHITE.into();
-            },
-        }
-    }
-}
-
-fn cleanup_menu(
-    mut commands: Commands,
-    menu: Res<MenuData>,
-) {
-    commands.entity(menu.button_entity).despawn_recursive();
-}
 
 
 #[derive(Resource, Deref, DerefMut)]
@@ -419,17 +216,7 @@ fn spawn_game_boards(
 /// 
 
 
-#[derive(Resource)]
-struct MenuData {
-    button_entity: Entity,
-}
 
-#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
-enum AppState {
-    #[default]
-    Menu,
-    InGame,
-}
 
 fn main() {
     App::new()
@@ -439,18 +226,20 @@ fn main() {
         .add_plugins(GamePlugin)
         .add_plugins(InputPlugin)
         .add_plugins(SoundPlugin)
-        .add_state::<AppState>()
-        .add_systems(Startup, (setup_resources, setup_camera, setup_ui_grid.after(setup_resources)))
+        .add_plugins(MenuPlugin)
+        .add_systems(
+            Startup, 
+            (
+                setup_resources, 
+                setup_camera, 
+                setup_ui_grid.after(setup_resources)
+            )
+        )
         .add_systems(PostStartup, (startup_finished, spawn_game_boards))
-        .add_systems(OnEnter(AppState::Menu), setup_menu)
-        .add_systems(OnExit(AppState::Menu), cleanup_menu)
         .add_systems(
             Update, 
             (
                 add_sprites, 
-                handle_game_result,
-                pause_game.run_if(in_state(AppState::InGame)),
-                menu.run_if(in_state(AppState::Menu)),
                 bevy::window::close_on_esc))
         .add_systems(PostUpdate, update_transforms.before(bevy::transform::TransformSystem::TransformPropagate))
         .run();
