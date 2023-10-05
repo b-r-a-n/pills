@@ -2,7 +2,11 @@ use bevy::prelude::*;
 use bevy::{app::PluginGroupBuilder, prelude::PluginGroup};
 use pills_game_board::*;
 use rand::{thread_rng, Rng};
+
 pub use pills_pieces::*;
+pub use game_state::*;
+
+mod game_state;
 
 pub struct GamePlugin;
 
@@ -16,20 +20,26 @@ impl Plugin for GamePlugin {
             .add_systems(OnEnter(GameState::Starting), start_game)
             .add_systems(OnExit(GameState::Starting), (spawn_viruses, spawn_pill))
             .add_systems(OnEnter(GameState::Finished), send_results)
-            .add_systems(OnExit(GameState::Finished), reset_game)
-            .add_systems(Update, (
-                add_pill_to_board, 
-                spawn_pill, 
-                move_pill, 
-                drop_pill,
-                rotate_pill,
-                drop_pieces,
-                resolve_timer,
-                clear_matches,
-                clear_cleared,
-                mark_finished,
-                sync_with_board).run_if(in_state(GameState::Active)))
-            ;
+            .add_systems(OnExit(GameState::Finished), cleanup_game)
+            .add_systems(
+                Update, 
+                (
+                    add_pill_to_board, 
+                    spawn_pill, 
+                    move_pill, 
+                    drop_pill,
+                    rotate_pill,
+                    drop_pieces,
+                    resolve_timer,
+                    clear_matches,
+                    clear_cleared,
+                    check_if_finished,
+                    sync_with_board,
+                )
+                    .run_if(in_state(GameState::Active))
+            )
+            .add_systems(PostUpdate, check_board_state.run_if(in_state(GameState::Active)))
+        ;
     }
 }
 
@@ -52,59 +62,6 @@ impl BoardBundle {
 #[derive(Event)]
 pub struct BoardResult;
 
-fn reset_game(
-    mut commands: Commands,
-    boards: Query<Entity, With<GameBoard>>,
-    pieces: Query<(Entity, &InBoard)>
-) {
-    for board_ent in boards.iter() {
-        info!("[reset_game] Resetting board: {:?}", board_ent);
-        commands.entity(board_ent)
-            .remove::<(NeedsDrop, NeedsFall, NeedsSpawn, NeedsPill, NeedsResolve, NeedsSync, FallTimer, ResolveTimer, GameBoard, Move, Drop, Rotate, Finished)>();
-        commands.entity(board_ent).despawn_descendants();
-        for (ent, in_board_ent) in pieces.iter() {
-            if in_board_ent.0 == board_ent {
-                commands.entity(ent).despawn_recursive();
-            }
-        }
-    }
-}
-
-fn start_game(
-    mut commands: Commands,
-    mut state: ResMut<NextState<GameState>>,
-    query: Query<(Entity, &BoardConfig), Without<GameBoard>>,
-) {
-    for (entity, config) in query.iter() {
-        info!("[start_game] Adding board bundle to entity: {:?}", entity);
-        commands.entity(entity)
-            .insert(BoardBundle::with_config(config))
-            .insert(NeedsPill)
-            .insert(NeedsSpawn);
-    }
-    state.set(GameState::Active);
-}
-
-fn mark_finished(
-    mut commands: Commands,
-    mut state: ResMut<NextState<GameState>>,
-    query: Query<(Entity, &GameBoard, Option<&Finished>)>,
-    
-) {
-    let (mut finished_count, mut total_count) = (0, 0);
-    for (entity, board, maybe_finished) in query.iter() {
-        total_count += 1;
-        if maybe_finished.is_some() {
-            finished_count += 1;
-        } else if board.virus_count() < 1 {
-            finished_count += 1;
-            commands.entity(entity).insert(Finished::Win);
-        }
-    }
-    if finished_count == total_count && total_count > 0 {
-        state.set(GameState::Finished);
-    }
-}
 
 fn send_results(
     mut events: EventWriter<BoardResult>,
@@ -171,7 +128,6 @@ fn add_pill_to_board(
     // For each pill marked with NextPill
     for (piece_ent, pill, piece_index, board_ent) in next_pieces.iter() {
         if let Ok((board_ent, mut board)) = boards.get_mut(**board_ent) {
-            info!("[add_pill_to_board] Adding pill to board: {:?}", board_ent);
             let (row, col) = (board.rows-1, board.cols/2-1);
             let col = col + piece_index.0 as usize;
             let orientation = if piece_index.0 == 0 { 
@@ -179,7 +135,8 @@ fn add_pill_to_board(
             } else { 
                 Some(Orientation::Left) 
             };
-            if board.get(col, row) != Cell::Empty {
+            if board.get(row, col) != Cell::Empty {
+                info!("[add_pill_to_board] Pill cannot be added to board {:?} at {}, {}", board_ent, row, col);
                 commands.entity(board_ent).insert(Finished::Loss);
                 continue;
             }
@@ -224,6 +181,18 @@ fn clear_cleared(
     for (cell_entity, board_entity) in cleared_query.iter() {
         if resolve_board_query.get(board_entity.get()).is_ok() {
             commands.entity(cell_entity).despawn_recursive();
+        }
+    }
+}
+
+fn check_board_state(
+    mut commands: Commands,
+    boards: Query<(Entity, &GameBoard), (Changed<GameBoard>, Without<Finished>)>,
+) {
+    for (entity, board) in boards.iter() {
+        if board.virus_count() < 1 {
+            info!("[check_board_state] Board {:?} has no viruses. Marking as finished", entity);
+            commands.entity(entity).insert(Finished::Win);
         }
     }
 }
@@ -468,20 +437,6 @@ impl Default for BoardConfig {
         }
     }
 }
-
-#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
-pub enum GameState {
-    #[default]
-    NotStarted,
-    Starting,
-    Active,
-    Paused,
-    //PillDropping,
-    //Resolving,
-    //PiecesFalling,
-    Finished,
-}
-
 
 #[derive(Component, Deref, DerefMut)]
 pub struct FallTimer(pub Timer);

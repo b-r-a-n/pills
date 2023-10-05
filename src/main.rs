@@ -8,8 +8,6 @@ use pills_input::*;
 use pills_sound::*;
 use pills_menu::*;
 
-
-
 /// Put systems here
 /// 
 fn setup_camera(
@@ -17,7 +15,6 @@ fn setup_camera(
 ) {
     commands.spawn(Camera2dBundle::default());
 }
-
 
 fn startup_finished(
     mut commands: Commands,
@@ -31,9 +28,6 @@ fn startup_finished(
     let layout_ent = spawn_layout(&mut commands, &asset_server, &mut texture_atlases);
     commands.entity(sidebar_container.0).add_child(layout_ent);
 }
-
-
-
 
 #[derive(Resource, Deref, DerefMut)]
 struct ContentContainer(Entity);
@@ -91,12 +85,6 @@ fn spawn_game_boards(
             ScorePolicy::default(),
         ));
 }
-
-/// Put components here
-/// 
-
-
-
 
 fn main() {
     App::new()
