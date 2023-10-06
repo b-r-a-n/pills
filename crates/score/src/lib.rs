@@ -26,6 +26,9 @@ pub struct ScoreChange {
     pub amount: i32
 }
 
+#[derive(Component)]
+pub struct ScoreBoard(pub Entity);
+
 fn add_score_tracking(
     mut commands: Commands,
     query: Query<Entity, (With<GameBoard>, Without<Score>, Without<GlobalScore>)>
@@ -39,14 +42,19 @@ fn add_score_tracking(
 }
 
 pub fn update_global_score(
-    mut scores: Query<(&mut Score, &mut GlobalScore)>,
+    mut scores: Query<(&mut Score, &mut GlobalScore, Option<&ScoreBoard>)>,
+    mut score_boards: Query<&mut Text>,
     mut events: EventReader<BoardResult>,
 ) {
     for event in events.iter() {
-        if let Ok((mut score, mut global_score)) = scores.get_mut(event.0) {
-            info!("Updating global score: {} + {}", global_score.0, score.0);
+        if let Ok((mut score, mut global_score, maybe_score_board)) = scores.get_mut(event.0) {
             global_score.0 += score.0;
             score.0 = 0;
+            if let Some(score_board_ent) = maybe_score_board {
+                if let Ok(mut text) = score_boards.get_mut(score_board_ent.0) {
+                    text.sections[0].value = "Score: 0".to_string();
+                }
+            }
         }
     }
 }
@@ -63,12 +71,13 @@ fn animate_floating_scores(
 
 fn update_score(
     mut commands: Commands,
-    mut scores: Query<&mut Score>,
+    mut scores: Query<(&mut Score, Option<&ScoreBoard>)>,
+    mut score_boards: Query<&mut Text>,
     positions: Query<Entity, With<BoardPosition>>,
     score_changes: Query<(Entity, &ScoreChange)>
 ) {
     for (entity, change) in score_changes.iter() {
-        if let Ok(mut score) = scores.get_mut(change.score_entity) {
+        if let Ok((mut score, maybe_score_board)) = scores.get_mut(change.score_entity) {
             let mut text_color = Color::WHITE;
             if change.amount < 0 {
                 if change.amount.abs() as usize > score.0 {
@@ -80,6 +89,11 @@ fn update_score(
             } else {
                 score.0 += change.amount as usize;
                 text_color = Color::GREEN;
+            }
+            if let Some(score_board) = maybe_score_board {
+                if let Ok(mut text) = score_boards.get_mut(score_board.0) {
+                    text.sections[0].value = format!("Score: {}", score.0).to_string();
+                }
             }
             // Spawn a red text at the source entity position
             if let Ok(parent) = positions.get(change.source_entity) {

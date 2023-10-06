@@ -52,6 +52,7 @@ fn setup_ui_grid(
     //commands.insert_resource(ContentContainer(content));
 }
 
+
 fn spawn_game_boards(
     mut commands: Commands,
 ){
@@ -67,7 +68,7 @@ fn spawn_game_boards(
         .spawn((
             SpriteBundle {
                 sprite: Sprite {
-                    color: Color::PINK,
+                    color: Color::DARK_GRAY,
                     custom_size: Some(Vec2::new(width, height)),
                     ..default()
                 },
@@ -76,19 +77,34 @@ fn spawn_game_boards(
             },
         ))
         .with_children(|builder| {
+            let score_board_ent = builder
+                .spawn(
+                    Text2dBundle {
+                        text: Text::from_section(
+                            "Score: 0".to_string(), 
+                            TextStyle {font_size: 24.0, color: Color::WHITE, ..default()}
+                        ),
+                        text_anchor: bevy::sprite::Anchor::TopLeft,
+                        transform: Transform::from_xyz(-CELL_SIZE * cols as f32 / 2.0, CELL_SIZE * rows as f32 / 2.0 + CELL_SIZE, 1.0),
+                        ..default()
+                    }
+                )
+                .id()
+            ;
             builder
                 .spawn((
                     SpriteBundle {
-                            sprite: Sprite {
-                                color: Color::BLACK,
-                                custom_size: Some(Vec2::new(CELL_SIZE * cols as f32, CELL_SIZE * rows as f32)),
-                                ..default()
-                            },
+                        sprite: Sprite {
+                            color: Color::BLACK,
+                            custom_size: Some(Vec2::new(CELL_SIZE * cols as f32, CELL_SIZE * rows as f32)),
+                            ..default()
+                        },
                         transform: Transform::from_xyz(0.0, -CELL_SIZE+4.0, 1.0),
                         ..default()
                     },
                     config,
                     KeyControlled,
+                    ScoreBoard(score_board_ent),
                     ScorePolicy::default(),
                 ))
             ;
