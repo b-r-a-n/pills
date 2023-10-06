@@ -15,8 +15,8 @@ struct ScoreChange(i32);
 
 #[derive(Event)]
 pub(crate) enum AuraEvent {
-    PillAdded(Entity, Pill),
-    VirusRemoved(Entity, Virus),
+    PillAdded(Entity, Entity, Pill),
+    VirusRemoved(Entity, Entity, Virus),
 }
 
 #[derive(Component)]
@@ -42,15 +42,15 @@ pub struct AuraBundle {
 
 fn generate_events(
     mut events: EventWriter<AuraEvent>,
-    pills_added: Query<(&Parent, &Pill), Added<Pill>>,
-    cells_removed: Query<(&Parent, &ClearedCell), Added<ClearedCell>>,
+    pills_added: Query<(Entity, &Parent, &Pill), Added<Pill>>,
+    cells_removed: Query<(Entity, &Parent, &ClearedCell), Added<ClearedCell>>,
 ) {
-    for (parent, pill) in pills_added.iter() {
-        events.send(AuraEvent::PillAdded(parent.get(), *pill));
+    for (entity, parent, pill) in pills_added.iter() {
+        events.send(AuraEvent::PillAdded(parent.get(), entity, *pill));
     }
-    for (parent, cell) in cells_removed.iter() {
+    for (entity, parent, cell) in cells_removed.iter() {
         if cell.was_virus {
-            events.send(AuraEvent::VirusRemoved(parent.get(), Virus(cell.color)));
+            events.send(AuraEvent::VirusRemoved(parent.get(), entity, Virus(cell.color)));
         }
     }
 }

@@ -34,21 +34,23 @@ fn generate_events(
 ) {
     for event in events.iter() {
         match event {
-            AuraEvent::PillAdded(b, p) => {
+            AuraEvent::PillAdded(b, e, p) => {
                 if let Ok(policy) = policies.get(*b) {
                     let f = policy.pill_added;
                     commands.spawn(ScoreChange{
                         score_entity: *b, 
+                        source_entity: *e,
                         amount:f(p)
                     });
                     info!("Score change for adding a pill: {}", f(p));
                 }
             },
-            AuraEvent::VirusRemoved(b, v) => {
+            AuraEvent::VirusRemoved(b, e, v) => {
                 if let Ok(policy) = policies.get(*b) {
                     let f = policy.virus_removed;
                     commands.spawn(ScoreChange{
                         score_entity: *b, 
+                        source_entity: *e,
                         amount:f(v)
                     });
                     info!("Score change for removing a virus: {}", f(v));
