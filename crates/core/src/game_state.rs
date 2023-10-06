@@ -32,7 +32,7 @@ pub(crate) fn start_game(
 
 pub(crate) fn check_if_finished(
     mut state: ResMut<NextState<GameState>>,
-    query: Query<Entity, (Without<Finished>, With<GameBoard>)>,
+    query: Query<Entity, (Without<BoardFinished>, With<GameBoard>)>,
 ) {
     if query.is_empty() {
         state.set(GameState::Finished);
@@ -41,12 +41,12 @@ pub(crate) fn check_if_finished(
 
 pub(crate) fn cleanup_game(
     mut commands: Commands,
-    mut boards: Query<(Entity, &mut BoardConfig, &mut VirusSpawner, Option<&Finished>), With<GameBoard>>,
+    mut boards: Query<(Entity, &mut BoardConfig, &mut VirusSpawner, Option<&BoardFinished>), With<GameBoard>>,
     pieces: Query<(Entity, &InBoard)>
 ) {
     for (board_ent, mut config, mut spawner, finished) in boards.iter_mut() {
         info!("[reset_game] Resetting board: {:?}", board_ent);
-        if finished == Some(&Finished::Win) {
+        if finished == Some(&BoardFinished::Win) {
             spawner.advance();
             if config.drop_period > 0.2 {
                 config.drop_period -= 0.1;
@@ -55,7 +55,7 @@ pub(crate) fn cleanup_game(
             spawner.reset();
         }
         commands.entity(board_ent)
-            .remove::<(NeedsDrop, NeedsFall, NeedsSpawn, NeedsPill, NeedsResolve, NeedsSync, FallTimer, ResolveTimer, GameBoard, Move, Drop, Rotate, Finished)>();
+            .remove::<(NeedsDrop, NeedsFall, NeedsSpawn, NeedsPill, NeedsResolve, NeedsSync, FallTimer, ResolveTimer, GameBoard, Move, Drop, Rotate, BoardFinished)>();
         commands.entity(board_ent).despawn_descendants();
         for (ent, in_board_ent) in pieces.iter() {
             if in_board_ent.0 == board_ent {

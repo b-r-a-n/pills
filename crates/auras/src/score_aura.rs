@@ -23,11 +23,11 @@ impl Default for ScorePolicy {
 impl Plugin for ScoreAuraPlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_systems(Update, generate_changes);
+            .add_systems(PreUpdate, generate_events);
     }
 }
 
-fn generate_changes(
+fn generate_events(
     mut commands: Commands,
     mut events: EventReader<AuraEvent>,
     policies: Query<&ScorePolicy>,

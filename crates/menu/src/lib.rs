@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use pills_core::*;
 use pills_input::*;
+use pills_score::*;
 
 pub struct MenuPlugin;
 
@@ -15,6 +16,7 @@ impl Plugin for MenuPlugin {
                     (
                         pause_game, 
                         handle_game_result
+                        .after(update_global_score)
                     )
                         .run_if(in_state(AppState::InGame)),
                     menu
@@ -221,32 +223,35 @@ fn cleanup_menu(
 
 fn handle_game_result(
     mut commands: Commands,
-    mut events: EventReader<BoardResult>,
     mut game_state: ResMut<NextState<GameState>>,
     mut app_state: ResMut<NextState<AppState>>,
-    boards: Query<(Entity, &GameBoard, Option<&KeyControlled>)>, 
+    mut events: EventReader<BoardResult>,
+    boards: Query<(Entity, Option<&KeyControlled>, Option<&GlobalScore>)>, 
 ) {
-    if events.is_empty() { return }
     let mut show_menu = false;
     for event in events.iter() {
-        let entity = event.0;
-        if let Ok((entity, board, maybe_key_controlled)) = boards.get(entity) {
-            if maybe_key_controlled.is_some() {
-                show_menu = true;
-                if board.virus_count() < 1 {
-                    commands.spawn(MenuTitle::Victory);
-                    commands.spawn_batch([
-                        (MenuOption::NextLevel),
-                        (MenuOption::Exit)
-                    ]);
-                } else {
-                    commands.spawn(MenuTitle::GameOver);
-                    commands.spawn_batch([
-                        (MenuOption::Play),
-                        (MenuOption::Exit)
-                    ]);
-                    commands.entity(entity).insert(BoardConfig::default());
-                }
+        if let Ok((entity, maybe_key_controlled, maybe_score)) = boards.get(event.0) {
+            match (maybe_key_controlled, maybe_score, event.1) {
+                (Some(_), Some(score), result) => {
+                    show_menu = true;
+                    if result {
+                        commands.spawn(MenuTitle::Victory);
+                        commands.spawn_batch([
+                            (MenuOption::NextLevel),
+                            (MenuOption::Exit)
+                        ]);
+                    } else {
+                        commands.spawn(MenuTitle::GameOver);
+                        commands.spawn_batch([
+                            (MenuOption::Play),
+                            (MenuOption::Exit)
+                        ]);
+                        // TODO: This does not belong here
+                        commands.entity(entity).insert(BoardConfig::default());
+                    }
+                    commands.spawn(MenuTitle::Custom(format!("Score: {}", score.0).to_string()));
+                },
+                _ => {}
             }
         }
     }

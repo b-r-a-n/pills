@@ -140,21 +140,22 @@ fn handle_hover(
     interactions: Query<(Entity, &Interaction, &GlobalTransform, &AuraText), Changed<Interaction>>,
     mut tooltip: Query<(&mut Style, &mut Text), With<AuraTooltip>>,
 ) {
-    let (mut style, mut text) = tooltip.single_mut();
-    for (_, interaction, transform, aura_text) in interactions.iter() {
-        match *interaction {
-            Interaction::Hovered => {
-                let (x,y,_) = transform.translation().into();
-                style.display = Display::Flex;
-                style.top = Val::Px(y);
-                style.left = Val::Px(x);
-                text.sections[0].value = aura_text.0.clone();
-                return
+    if let Ok((mut style, mut text)) = tooltip.get_single_mut() {
+        for (_, interaction, transform, aura_text) in interactions.iter() {
+            match *interaction {
+                Interaction::Hovered => {
+                    let (x,y,_) = transform.translation().into();
+                    style.display = Display::Flex;
+                    style.top = Val::Px(y);
+                    style.left = Val::Px(x);
+                    text.sections[0].value = aura_text.0.clone();
+                    return
+                }
+                Interaction::None => {
+                    style.display = Display::None;
+                }
+                _ => {}
             }
-            Interaction::None => {
-                style.display = Display::None;
-            }
-            _ => {}
         }
     }
 }

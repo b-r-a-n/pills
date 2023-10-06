@@ -6,7 +6,7 @@ impl Plugin for ScorePlugin {
     fn build(&self, app: &mut App) {
         app
             .add_systems(PreUpdate, add_score_tracking)
-            .add_systems(Update, update_score);
+            .add_systems(Update, (update_score, update_global_score.after(update_score)));
     }
 }
 
@@ -27,9 +27,23 @@ fn add_score_tracking(
     query: Query<Entity, (With<GameBoard>, Without<Score>, Without<GlobalScore>)>
 ) {
     for entity in query.iter() {
+        info!("Adding score tracking to {:?}", entity);
         commands.entity(entity)
             .insert(Score(0))
             .insert(GlobalScore(0));
+    }
+}
+
+pub fn update_global_score(
+    mut scores: Query<(&mut Score, &mut GlobalScore)>,
+    mut events: EventReader<BoardResult>,
+) {
+    for event in events.iter() {
+        if let Ok((mut score, mut global_score)) = scores.get_mut(event.0) {
+            info!("Updating global score: {} + {}", global_score.0, score.0);
+            global_score.0 += score.0;
+            score.0 = 0;
+        }
     }
 }
 

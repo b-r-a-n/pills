@@ -61,7 +61,7 @@ impl BoardBundle {
 }
 
 #[derive(Event)]
-pub struct BoardResult(pub Entity);
+pub struct BoardResult(pub Entity, pub bool);
 
 pub(crate) type SpawnPolicy = fn(&mut VirusSpawner, &mut ThreadRng, u8, u8) -> Option<Virus>;
 
@@ -115,10 +115,10 @@ impl Default for VirusSpawner {
 
 fn send_results(
     mut events: EventWriter<BoardResult>,
-    query: Query<Entity, (With<GameBoard>, With<Finished>)>,
+    query: Query<(Entity, &BoardFinished), With<GameBoard>>,
 ) {
-    for entity in query.iter() {
-        events.send(BoardResult(entity));
+    for (entity, finished) in query.iter() {
+        events.send(BoardResult(entity, match finished { BoardFinished::Loss => { false }, BoardFinished::Win => { true } } ));
     }
 }
 
@@ -180,7 +180,7 @@ fn add_pill_to_board(
             };
             if board.get(row, col) != Cell::Empty {
                 info!("[add_pill_to_board] Pill cannot be added to board {:?} at {}, {}", board_ent, row, col);
-                commands.entity(board_ent).insert(Finished::Loss);
+                commands.entity(board_ent).insert(BoardFinished::Loss);
                 continue;
             }
             board.set(row, col, Cell::Pill(piece_ent, pill.0, orientation));
@@ -230,12 +230,12 @@ fn clear_cleared(
 
 fn check_board_state(
     mut commands: Commands,
-    boards: Query<(Entity, &GameBoard), (Changed<GameBoard>, Without<Finished>)>,
+    boards: Query<(Entity, &GameBoard), (Changed<GameBoard>, Without<BoardFinished>)>,
 ) {
     for (entity, board) in boards.iter() {
         if board.virus_count() < 1 {
             info!("[check_board_state] Board {:?} has no viruses. Marking as finished", entity);
-            commands.entity(entity).insert(Finished::Win);
+            commands.entity(entity).insert(BoardFinished::Win);
         }
     }
 }
@@ -439,7 +439,7 @@ struct NeedsDrop;
 struct NeedsFall;
 
 #[derive(Component, Debug, PartialEq)]
-enum Finished {
+enum BoardFinished {
     Win,
     Loss,
 }

@@ -2592,6 +2592,7 @@ dependencies = [
  "bevy",
  "pills_core",
  "pills_input",
+ "pills_score",
 ]
 
 [[package]]

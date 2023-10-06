@@ -1,12 +1,13 @@
 use bevy::prelude::*;
 use pills_input::KeyControlled;
 
-use pills_auras::*;
 use pills_pieces::*;
 use pills_core::*;
 use pills_input::*;
 use pills_sound::*;
 use pills_menu::*;
+use pills_score::*;
+use pills_auras::*;
 
 /// Put systems here
 /// 
@@ -88,6 +89,7 @@ fn spawn_game_boards(
                     },
                     config,
                     KeyControlled,
+                    ScorePolicy::default(),
                 ))
             ;
         }
@@ -97,8 +99,8 @@ fn spawn_game_boards(
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        //.add_plugins(AuraPluginGroup)
-        //.add_plugins(ScorePlugin)
+        .add_plugins(AuraPluginGroup)
+        .add_plugins(ScorePlugin)
         .add_plugins(GamePlugin)
         .add_plugins(PiecesPlugin)
         .add_plugins(InputPlugin)
