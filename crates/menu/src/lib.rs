@@ -221,34 +221,37 @@ fn cleanup_menu(
 
 fn handle_game_result(
     mut commands: Commands,
-    event: EventReader<BoardResult>,
+    mut events: EventReader<BoardResult>,
     mut game_state: ResMut<NextState<GameState>>,
     mut app_state: ResMut<NextState<AppState>>,
-    mut boards: Query<(Entity, &GameBoard, &mut BoardConfig, Option<&KeyControlled>)>, 
+    boards: Query<(Entity, &GameBoard, Option<&KeyControlled>)>, 
 ) {
-    if event.is_empty() { return }
-    for (entity, board, mut config, maybe_key_controlled) in boards.iter_mut() {
-        if maybe_key_controlled.is_some() {
-            if board.virus_count() < 1 {
-                commands.spawn(MenuTitle::Victory);
-                commands.spawn_batch([
-                    (MenuOption::NextLevel),
-                    (MenuOption::Exit)
-                ]);
-                config.max_viruses *= 2;
-                if config.drop_period > 0.2 {
-                    config.drop_period -= 0.1;
+    if events.is_empty() { return }
+    let mut show_menu = false;
+    for event in events.iter() {
+        let entity = event.0;
+        if let Ok((entity, board, maybe_key_controlled)) = boards.get(entity) {
+            if maybe_key_controlled.is_some() {
+                show_menu = true;
+                if board.virus_count() < 1 {
+                    commands.spawn(MenuTitle::Victory);
+                    commands.spawn_batch([
+                        (MenuOption::NextLevel),
+                        (MenuOption::Exit)
+                    ]);
+                } else {
+                    commands.spawn(MenuTitle::GameOver);
+                    commands.spawn_batch([
+                        (MenuOption::Play),
+                        (MenuOption::Exit)
+                    ]);
+                    commands.entity(entity).insert(BoardConfig::default());
                 }
-            } else {
-                commands.spawn(MenuTitle::GameOver);
-                commands.spawn_batch([
-                    (MenuOption::Play),
-                    (MenuOption::Exit)
-                ]);
-                commands.entity(entity).insert(BoardConfig::default());
             }
         }
     }
-    game_state.set(GameState::NotStarted);
-    app_state.set(AppState::Menu);
+    if show_menu {
+        game_state.set(GameState::NotStarted);
+        app_state.set(AppState::Menu);
+    }
 }

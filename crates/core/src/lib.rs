@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy::{app::PluginGroupBuilder, prelude::PluginGroup};
 use pills_game_board::*;
 use rand::{thread_rng, Rng};
+use rand::rngs::ThreadRng;
 
 pub use pills_pieces::*;
 pub use game_state::*;
@@ -60,49 +61,91 @@ impl BoardBundle {
 }
 
 #[derive(Event)]
-pub struct BoardResult;
+pub struct BoardResult(pub Entity);
+
+pub(crate) type SpawnPolicy = fn(&mut VirusSpawner, &mut ThreadRng, u8, u8) -> Option<Virus>;
+
+#[derive(Component)]
+pub(crate) struct VirusSpawner {
+    max_viruses: usize,
+    spawned_count: usize,
+    spawn_policy: SpawnPolicy,
+}
+
+impl VirusSpawner {
+    fn spawn(&mut self, rng: &mut ThreadRng, row: u8, col: u8) -> Option<Virus> {
+        if self.max_viruses > self.spawned_count {
+            let result = (self.spawn_policy)(self, rng, row, col);
+            if result.is_some() {
+                self.spawned_count += 1;
+            }
+            result
+        } else {
+            None
+        }
+    }
+
+    fn reset(&mut self) {
+        self.spawned_count = 0;
+    }
+
+    fn advance(&mut self) {
+        self.spawned_count = 0;
+        self.max_viruses *= 2;
+    }
+}
+
+impl Default for VirusSpawner {
+    fn default() -> Self {
+        Self {
+            max_viruses: 1,
+            spawned_count: 0,
+            spawn_policy: |_, rng, _, _| {
+                match rng.gen_range(0..4) {
+                    0 => Some(Virus(CellColor::RED)),
+                    1 => Some(Virus(CellColor::BLUE)),
+                    2 => Some(Virus(CellColor::YELLOW)),
+                    _ => None,
+                }
+            },
+        }
+    }
+}
 
 
 fn send_results(
     mut events: EventWriter<BoardResult>,
+    query: Query<Entity, (With<GameBoard>, With<Finished>)>,
 ) {
-    events.send(BoardResult);
+    for entity in query.iter() {
+        events.send(BoardResult(entity));
+    }
 }
 
 fn spawn_viruses(
     mut commands: Commands,
-    mut query: Query<(Entity, &BoardConfig, &mut GameBoard)>,
+    mut query: Query<(Entity, &mut VirusSpawner, &mut GameBoard)>,
 ) {
-    for (entity, config, mut board) in query.iter_mut() {
+    for (entity, mut spawner, mut board) in query.iter_mut() {
         commands.entity(entity).with_children(|builder|{
-            let mut virus_count = config.max_viruses;
             for row in 0..(board.rows-1) as u8 {
+                if spawner.max_viruses < 1 {
+                    break;
+                }
                 for col in 0..board.cols as u8 {
-                    let random_value = thread_rng().gen_range(0..4);
-                    match random_value {
-                        0..=2 => {
-                            let color = match random_value {
-                                0 => CellColor::RED,
-                                1 => CellColor::BLUE,
-                                2 => CellColor::YELLOW,
-                                _ => unreachable!(),
-                            };
-                            let ent = builder.spawn((
-                                Virus(color), 
-                                BoardPosition { row, column: col },
-                                InBoard(entity),
-                            )).id();
-                            board.set(row as usize, col as usize, Cell::Virus(ent, color));
-                            virus_count -= 1;
-                        },
-                        _ => {},
-                    }
-                    if virus_count == 0 {
-                        return;
+                    let mut rng = thread_rng();
+                    if let Some(virus) = spawner.spawn(&mut rng, row, col) {
+                        let ent = builder.spawn((
+                            virus, 
+                            BoardPosition { row, column: col },
+                            InBoard(entity),
+                        )).id();
+                        board.set(row as usize, col as usize, Cell::Virus(ent, virus.0));
                     }
                 }
             }
         });
+        spawner.reset();
     }
 }
 
@@ -395,7 +438,7 @@ struct NeedsDrop;
 #[derive(Component, Debug)]
 struct NeedsFall;
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, PartialEq)]
 enum Finished {
     Win,
     Loss,

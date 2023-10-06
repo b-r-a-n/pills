@@ -105,7 +105,7 @@ fn add_sprites(
                     .with_scale(Vec3::new(0.5, 0.5, 1.0))
             },
             (None, Some(next_index)) => {
-                Transform::from_xyz((10.0 + next_index.0 as f32) * CELL_SIZE, 0.0, 100.0)
+                Transform::from_xyz(0.0, 0.0, 100.0)
                     .with_scale(Vec3::new(0.5, 0.5, 1.0))
                     .with_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_2 * ((next_index.0 as f32 * 2.0) + 1.)))
             },
@@ -139,13 +139,15 @@ fn add_sprites(
 }
 
 fn update_transforms(
-    mut query: Query<(Entity, &BoardPosition, &mut Transform, &InBoard), Or<(Added<Transform>, Added<BoardPosition>, Changed<BoardPosition>)>>,
+    mut query: Query<(&BoardPosition, &mut Transform, &InBoard), (Without<NextPill>, Or<(Added<Transform>, Added<BoardPosition>, Changed<BoardPosition>)>)>,
+    mut next_pieces: Query<(&mut Transform, &NextPill, &InBoard), Or<(Added<NextPill>, Added<Transform>)>>,
     boards: Query<&GameBoard>,
 ) {
-    for (entity, board_position, mut transform, board) in query.iter_mut() {
+    for (board_position, mut transform, board) in query.iter_mut() {
         let board = boards.get(**board).unwrap();
         transform.translation.x = (board_position.column as f32 * CELL_SIZE) - (CELL_SIZE * board.cols as f32) / 2.0 + CELL_SIZE / 2.0;
         transform.translation.y = (board_position.row as f32 * CELL_SIZE) - (CELL_SIZE * board.rows as f32) / 2.0 + CELL_SIZE / 2.0;
+        transform.translation.z = 100.0;
         if let Some(orientation) = board
             .get(board_position.row as usize, board_position.column as usize)
             .get_orientation() {
@@ -156,5 +158,14 @@ fn update_transforms(
                 Orientation::Right => Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
             };
         }
+    }
+
+    for (mut transform, next_pill, board) in next_pieces.iter_mut() {
+        let board = boards.get(**board).unwrap();
+        let x = ((board.cols as f32 / 2.0) + next_pill.0 as f32 - 1.5) * CELL_SIZE;
+        let y = (board.rows as f32 / 2.0 + 0.5) * CELL_SIZE;
+        transform.translation.x = x;
+        transform.translation.y = y;
+        transform.translation.z = 100.0;
     }
 }

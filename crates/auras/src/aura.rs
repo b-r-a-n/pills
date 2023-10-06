@@ -6,7 +6,6 @@ impl Plugin for AuraPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_event::<AuraEvent>()
-            .add_systems(Startup, spawn_tooltip_container)
             .add_systems(Update, (generate_events, handle_hover));
     }
 }

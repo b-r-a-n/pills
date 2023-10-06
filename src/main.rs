@@ -16,19 +16,6 @@ fn setup_camera(
     commands.spawn(Camera2dBundle::default());
 }
 
-fn startup_finished(
-    mut commands: Commands,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
-    asset_server: Res<AssetServer>,
-    sidebar_container: Res<SidebarContainer>
-) {
-    // TODO: Figure out to make this work in the aura plugin
-    // This is problematic, if we don't have the plugin group, we don't want to do this
-    // It should probably be moved into the plugin itself
-    let layout_ent = spawn_layout(&mut commands, &asset_server, &mut texture_atlases);
-    commands.entity(sidebar_container.0).add_child(layout_ent);
-}
-
 #[derive(Resource, Deref, DerefMut)]
 struct ContentContainer(Entity);
 
@@ -69,21 +56,42 @@ fn spawn_game_boards(
 ){
     let config = BoardConfig::default();
     let (rows, cols) = config.board_size;
+    let (mut width, mut height) = (CELL_SIZE * cols as f32, CELL_SIZE * rows as f32);
+    // Add space to height for the next pill
+    height += CELL_SIZE * 2.0;
+    // Create a border effect
+    width += 8.0;
+    // Spawn the background for all the board components
     commands
         .spawn((
             SpriteBundle {
                 sprite: Sprite {
-                    color: Color::BLACK,
-                    custom_size: Some(Vec2::new(CELL_SIZE * cols as f32, CELL_SIZE * rows as f32)),
+                    color: Color::PINK,
+                    custom_size: Some(Vec2::new(width, height)),
                     ..default()
                 },
-                transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+                transform: Transform::from_xyz(0.0, 0.0, 0.0),
                 ..default()
             },
-            config,
-            KeyControlled,
-            ScorePolicy::default(),
-        ));
+        ))
+        .with_children(|builder| {
+            builder
+                .spawn((
+                    SpriteBundle {
+                            sprite: Sprite {
+                                color: Color::BLACK,
+                                custom_size: Some(Vec2::new(CELL_SIZE * cols as f32, CELL_SIZE * rows as f32)),
+                                ..default()
+                            },
+                        transform: Transform::from_xyz(0.0, -CELL_SIZE+4.0, 1.0),
+                        ..default()
+                    },
+                    config,
+                    KeyControlled,
+                ))
+            ;
+        }
+    );
 }
 
 fn main() {
@@ -103,7 +111,7 @@ fn main() {
                 setup_ui_grid,
             )
         )
-        .add_systems(PostStartup, (startup_finished, spawn_game_boards))
+        .add_systems(PostStartup,  spawn_game_boards)
         .add_systems(
             Update, 
             bevy::window::close_on_esc)
