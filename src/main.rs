@@ -95,7 +95,7 @@ fn spawn_game_boards(
                 .spawn((
                     SpriteBundle {
                         sprite: Sprite {
-                            color: Color::BLACK,
+                            color: Color::rgb(0.4, 0.4, 0.4),
                             custom_size: Some(Vec2::new(CELL_SIZE * cols as f32, CELL_SIZE * rows as f32)),
                             ..default()
                         },
