@@ -64,7 +64,7 @@ fn spawn_game_boards(
     // Create a border effect
     width += 8.0;
     // Spawn the background for all the board components
-    commands
+    let bg_ent = commands
         .spawn((
             SpriteBundle {
                 sprite: Sprite {
@@ -76,40 +76,43 @@ fn spawn_game_boards(
                 ..default()
             },
         ))
-        .with_children(|builder| {
-            let score_board_ent = builder
-                .spawn(
-                    Text2dBundle {
-                        text: Text::from_section(
-                            "Score: 0".to_string(), 
-                            TextStyle {font_size: 24.0, color: Color::WHITE, ..default()}
-                        ),
-                        text_anchor: bevy::sprite::Anchor::TopLeft,
-                        transform: Transform::from_xyz(-CELL_SIZE * cols as f32 / 2.0, CELL_SIZE * rows as f32 / 2.0 + CELL_SIZE, 1.0),
-                        ..default()
-                    }
-                )
-                .id()
-            ;
-            builder
-                .spawn((
-                    SpriteBundle {
-                        sprite: Sprite {
-                            color: Color::rgb(0.4, 0.4, 0.4),
-                            custom_size: Some(Vec2::new(CELL_SIZE * cols as f32, CELL_SIZE * rows as f32)),
-                            ..default()
-                        },
-                        transform: Transform::from_xyz(0.0, -CELL_SIZE+4.0, 1.0),
-                        ..default()
-                    },
-                    config,
-                    KeyControlled,
-                    ScoreBoard(score_board_ent),
-                    ScorePolicy::default(),
-                ))
-            ;
-        }
-    );
+        .id();
+    let score_board_ent = commands
+        .spawn(
+            Text2dBundle {
+                text: Text::from_section(
+                    "Score: 0".to_string(), 
+                    TextStyle {font_size: 24.0, color: Color::WHITE, ..default()}
+                ),
+                text_anchor: bevy::sprite::Anchor::TopLeft,
+                transform: Transform::from_xyz(-CELL_SIZE * cols as f32 / 2.0, CELL_SIZE * rows as f32 / 2.0 + CELL_SIZE, 1.0),
+                ..default()
+            }
+        )
+        .set_parent(bg_ent)
+        .id();
+    let board_ent = commands
+        .spawn((
+            SpriteBundle {
+                sprite: Sprite {
+                    color: Color::rgb(0.4, 0.4, 0.4),
+                    custom_size: Some(Vec2::new(CELL_SIZE * cols as f32, CELL_SIZE * rows as f32)),
+                    ..default()
+                },
+                transform: Transform::from_xyz(0.0, -CELL_SIZE+4.0, 1.0),
+                ..default()
+            },
+            config,
+            KeyControlled,
+            ScoreBoard(score_board_ent),
+        ))
+        .set_parent(bg_ent)
+        .id();
+    commands
+        .spawn((
+            InBoard(board_ent), 
+            ScorePolicy::default(),
+        ));
 }
 
 fn main() {

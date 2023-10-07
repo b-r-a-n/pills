@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use pills_core::*;
 use pills_input::*;
 use pills_score::*;
+use pills_auras::*;
 
 pub struct MenuPlugin;
 
@@ -165,8 +166,9 @@ fn menu(
     mut interaction_query: Query<(&Interaction, &MenuOption, &mut BackgroundColor, &Children), (Changed<Interaction>, With<Button>)>,
     mut text_query: Query<&mut Text>,
     mut app_state: ResMut<NextState<AppState>>,
-    curr_game_state: Res<State<GameState>>,
     mut game_state: ResMut<NextState<GameState>>,
+    boards: Query<(Entity, &BoardConfig)>,
+    curr_game_state: Res<State<GameState>>,
     focused_windows: Query<(Entity, &Window)>,
 ){
     for (interaction, option, mut background_color, children) in &mut interaction_query {
@@ -186,6 +188,15 @@ fn menu(
                 let mut text = text_query.get_mut(children[0]).unwrap();
                 *background_color = Color::DARK_GRAY.into();
                 text.sections[0].style.color = Color::PINK.into();
+                for (board, config) in boards.iter() {
+                    commands
+                        .spawn((
+                            InBoard(board), 
+                            ScorePolicy::default(),
+                            LimitedMovePolicy::new(99, AuraEffect::BoardFinished(BoardFinished::Loss)),
+                        ))
+                    ;
+                }
                 game_state.set(GameState::Starting);
                 app_state.set(AppState::InGame);
             },

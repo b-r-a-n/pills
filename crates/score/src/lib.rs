@@ -79,33 +79,41 @@ fn update_score(
     for (entity, change) in score_changes.iter() {
         if let Ok((mut score, maybe_score_board)) = scores.get_mut(change.score_entity) {
             let mut text_color = Color::WHITE;
+            let mut actual_amount = change.amount;
             if change.amount < 0 {
                 if change.amount.abs() as usize > score.0 {
+                    actual_amount = -(score.0 as i32);
                     score.0 = 0;
                 } else {
                     score.0 -= change.amount.abs() as usize;
-                    text_color = Color::RED;
                 }
+                text_color = Color::RED;
             } else {
                 score.0 += change.amount as usize;
-                text_color = Color::GREEN;
+                if change.amount > 0 {
+                    text_color = Color::GREEN;
+                }
             }
             if let Some(score_board) = maybe_score_board {
                 if let Ok(mut text) = score_boards.get_mut(score_board.0) {
                     text.sections[0].value = format!("Score: {}", score.0).to_string();
                 }
             }
-            // Spawn a red text at the source entity position
+            if actual_amount == 0 {
+                continue;
+            }
+            // Spawn a floating text at the source entity position
             if let Ok(parent) = positions.get(change.source_entity) {
                 commands.entity(parent).with_children(|builder| {
                     builder.spawn((
                         Text2dBundle {
                             text: Text::from_section(
-                                format!("{}", change.amount).to_string(),
+                                format!("{}", actual_amount).to_string(),
                                 TextStyle {font_size: 64.0, color: text_color, ..default()}
                             ),
                             ..default()
                         },
+                        DespawnIn(Timer::from_seconds(1.5, TimerMode::Once)),
                         FloatingScoreText,
                     ));
                 });

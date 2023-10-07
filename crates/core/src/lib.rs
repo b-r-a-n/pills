@@ -35,6 +35,7 @@ impl Plugin for GamePlugin {
                     clear_matches,
                     clear_cleared,
                     check_if_finished,
+                    despawn,
                     sync_with_board,
                 )
                     .run_if(in_state(GameState::Active))
@@ -110,6 +111,23 @@ impl Default for VirusSpawner {
             },
         }
     }
+}
+
+#[derive(Component)]
+pub struct DespawnIn(pub Timer);
+
+fn despawn(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut DespawnIn)>,
+    time: Res<Time>
+) {
+
+    for (entity, mut timer) in query.iter_mut() {
+        if timer.0.tick(time.delta()).just_finished() {
+            commands.entity(entity).despawn_recursive();
+        }
+    }
+
 }
 
 
@@ -310,7 +328,7 @@ fn move_pill(
             if board.move_pill(from, to) {
                 commands.entity(entity).remove::<Move>();
                 commands.entity(**board_entity).insert(NeedsSync);
-                events.send(PillEvent::PillMoved(entity));
+                events.send(PillEvent::PillMoved(**board_entity, entity));
             }
         }
     }
@@ -329,7 +347,7 @@ fn rotate_pill(
             if board.rotate_pill(from, to) { 
                 commands.entity(entity).remove::<Rotate>();
                 commands.entity(**board_entity).insert(NeedsSync);
-                events.send(PillEvent::PillRotated(entity))
+                events.send(PillEvent::PillRotated(**board_entity, entity))
             } 
         }
     }
@@ -438,8 +456,8 @@ struct NeedsDrop;
 #[derive(Component, Debug)]
 struct NeedsFall;
 
-#[derive(Component, Debug, PartialEq)]
-enum BoardFinished {
+#[derive(Component, Copy, Clone, Debug, PartialEq)]
+pub enum BoardFinished {
     Win,
     Loss,
 }
@@ -489,8 +507,8 @@ struct ResolveTimer(pub Timer);
 
 #[derive(Event, Debug)]
 pub enum PillEvent {
-    PillMoved(Entity),
-    PillRotated(Entity),
+    PillMoved(Entity, Entity),
+    PillRotated(Entity, Entity),
 }
 
 #[derive(Event, Debug)]

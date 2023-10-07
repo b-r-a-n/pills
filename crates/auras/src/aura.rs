@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 use pills_pieces::*;
+use pills_core::*;
+
 pub(crate) struct AuraPlugin;
 
 impl Plugin for AuraPlugin {
@@ -13,10 +15,15 @@ impl Plugin for AuraPlugin {
 #[derive(Component)]
 struct ScoreChange(i32);
 
+
+pub enum AuraEffect {
+    BoardFinished(BoardFinished),
+}
 #[derive(Event)]
 pub(crate) enum AuraEvent {
     PillAdded(Entity, Entity, Pill),
     VirusRemoved(Entity, Entity, Virus),
+    PieceMoved(Entity, Entity),
 }
 
 #[derive(Component)]
@@ -42,7 +49,8 @@ pub struct AuraBundle {
 
 fn generate_events(
     mut events: EventWriter<AuraEvent>,
-    pills_added: Query<(Entity, &Parent, &Pill), Added<Pill>>,
+    mut pill_events: EventReader<PillEvent>,
+    pills_added: Query<(Entity, &Parent, &Pill), Added<PivotPiece>>,
     cells_removed: Query<(Entity, &Parent, &ClearedCell), Added<ClearedCell>>,
 ) {
     for (entity, parent, pill) in pills_added.iter() {
@@ -51,6 +59,14 @@ fn generate_events(
     for (entity, parent, cell) in cells_removed.iter() {
         if cell.was_virus {
             events.send(AuraEvent::VirusRemoved(parent.get(), entity, Virus(cell.color)));
+        }
+    }
+    for event in pill_events.iter() {
+        match event {
+            PillEvent::PillMoved(board, pill) => {
+                events.send(AuraEvent::PieceMoved(*board, *pill));
+            },
+            _ => {},
         }
     }
 }

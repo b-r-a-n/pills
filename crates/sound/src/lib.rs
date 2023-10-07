@@ -36,13 +36,13 @@ fn play_pill_sound(
     if events.is_empty() { return }
     for event in events.iter() {
         match event {
-            PillEvent::PillMoved(_) => {
+            PillEvent::PillMoved(_, _) => {
                 commands.spawn(AudioBundle {
                     source: sound_handles.move_sound.clone(),
                     settings: PlaybackSettings::DESPAWN,
                 });
             }
-            PillEvent::PillRotated(_) =>  {
+            PillEvent::PillRotated(_, _) =>  {
                 commands.spawn(AudioBundle {
                     source: sound_handles.rotate_sound.clone(),
                     settings: PlaybackSettings::DESPAWN,
