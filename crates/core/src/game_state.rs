@@ -29,13 +29,3 @@ pub(crate) fn start_game(
     }
     state.set(GameState::Active);
 }
-
-pub(crate) fn check_if_finished(
-    mut state: ResMut<NextState<GameState>>,
-    query: Query<Entity, (Without<BoardFinished>, With<GameBoard>)>,
-) {
-    if query.is_empty() {
-        info!("[check_if_finished] No unfinished boards left. Setting game state to finished.");
-        state.set(GameState::Finished);
-    }
-}

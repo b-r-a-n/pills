@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use pills_core::*;
 use pills_input::*;
-use pills_score::*;
 use pills_level::*;
+use pills_score::*;
 
 pub struct MenuPlugin;
 
@@ -16,8 +16,6 @@ impl Plugin for MenuPlugin {
                 (
                     (
                         pause_game, 
-                        handle_level_finished
-                        .after(update_global_score)
                     )
                         .run_if(in_state(AppState::InGame)),
                     menu
@@ -27,6 +25,7 @@ impl Plugin for MenuPlugin {
             .add_systems(Startup, startup_menu)
             .add_systems(OnEnter(AppState::Menu), setup_menu)
             .add_systems(OnExit(AppState::Menu), cleanup_menu)
+            .add_systems(OnTransition { from: GameState::Active, to: GameState::Finished }, handle_level_finished)
         ;
     }
 }
@@ -228,55 +227,30 @@ fn cleanup_menu(
 
 fn handle_level_finished(
     mut commands: Commands,
-    mut events: EventReader<LevelFinished>,
     mut game_state: ResMut<NextState<GameState>>,
     mut app_state: ResMut<NextState<AppState>>,
-    boards: Query<(Option<&KeyControlled>, Option<&GlobalScore>)>, 
+    boards: Query<(&BoardFinished, Option<&GlobalScore>), With<KeyControlled>>,
 ) {
-    use LevelFinished::*;
-    if events.is_empty() { return; }
-    let (game_over, score) = match events.iter().next().unwrap() {
-        Win(entity) => {
-            if let Ok((maybe_key_controlled, maybe_score)) = boards.get(*entity) {
-                if maybe_key_controlled.is_some() {
-                    (false, maybe_score.map(|s| s.0).unwrap_or(0))
-                } else {
-                    (true, maybe_score.map(|s| s.0).unwrap_or(0))
-                }
-            } else {
-                unreachable!("Win event without a board entity");
-            }
+    let (result, score) = boards.single();
+    match result {
+        BoardFinished::Win => {
+            commands.spawn(MenuTitle::Victory);
+            commands.spawn_batch([
+                (MenuOption::NextLevel),
+                (MenuOption::Exit)
+            ]);
         },
-        Loss(entity) => {
-            if let Ok((maybe_key_controlled, maybe_score)) = boards.get(*entity) {
-                if maybe_key_controlled.is_some() {
-                    (true, maybe_score.map(|s| s.0).unwrap_or(0))
-                } else {
-                    (false, maybe_score.map(|s| s.0).unwrap_or(0))
-                }
-            } else {
-                unreachable!("Loss event without a board entity");
-            }
-
+        BoardFinished::Loss => {
+            commands.spawn(MenuTitle::GameOver);
+            commands.spawn_batch([
+                (MenuOption::Play),
+                (MenuOption::Exit)
+            ]);
         },
-        // TODO: Fix the score here...
-        Draw => { (false, 0) },
-    };
-    if game_over {
-        commands.spawn(MenuTitle::GameOver);
-        commands.spawn_batch([
-            (MenuOption::Play),
-            (MenuOption::Exit)
-        ]);
-    } else {
-        commands.spawn(MenuTitle::Victory);
-        commands.spawn_batch([
-            (MenuOption::NextLevel),
-            (MenuOption::Exit)
-        ]);
     }
-    commands.spawn(MenuTitle::Custom(format!("Score: {}", score).to_string()));
-    events.clear();
+    if let Some(score) = score {
+        commands.spawn(MenuTitle::Custom(format!("Score: {}", score.0).to_string()));
+    }
     game_state.set(GameState::NotStarted);
     app_state.set(AppState::Menu);
 }

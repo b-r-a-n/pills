@@ -7,7 +7,8 @@ impl Plugin for ScorePlugin {
     fn build(&self, app: &mut App) {
         app
             .add_systems(PreUpdate, add_score_tracking)
-            .add_systems(Update, (animate_floating_scores, update_score, update_global_score.after(update_score)));
+            .add_systems(OnTransition { from: GameState::Active, to: GameState::Finished }, update_global_score)
+            .add_systems(Update, (animate_floating_scores, update_score));
     }
 }
 
@@ -45,10 +46,8 @@ fn add_score_tracking(
 pub fn update_global_score(
     mut scores: Query<(&mut Score, &mut GlobalScore, Option<&ScoreBoard>)>,
     mut score_boards: Query<&mut Text>,
-    events: EventReader<LevelFinished>,
     level: Res<Level>,
 ) {
-    if events.is_empty() { return; }
     for entity in level.board_configs.iter() {
         if let Ok((mut score, mut global_score, maybe_score_board)) = scores.get_mut(*entity) {
             global_score.0 += score.0;

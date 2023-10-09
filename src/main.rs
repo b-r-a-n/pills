@@ -51,6 +51,12 @@ fn setup_ui_grid(
     //commands.insert_resource(ContentContainer(content));
 }
 
+fn print_state_change(
+    state: Res<State<GameState>>,
+) {
+    info!("State changed to {:?}", state.get());
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
@@ -73,5 +79,6 @@ fn main() {
         .add_systems(
             Update, 
             bevy::window::close_on_esc)
+        .add_systems(Update, print_state_change.run_if(state_changed::<GameState>()))
         .run();
 }

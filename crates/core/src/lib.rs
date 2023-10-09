@@ -31,7 +31,6 @@ impl Plugin for GamePlugin {
                     resolve_timer,
                     clear_matches,
                     clear_cleared,
-                    check_if_finished,
                     despawn,
                     sync_with_board,
                 )

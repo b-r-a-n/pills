@@ -14,27 +14,25 @@ pub struct LevelPlugin;
 impl Plugin for LevelPlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_event::<LevelFinished>()
             .add_systems(Update, check_for_completion
                 .run_if(in_state(GameState::Active)))
-            .add_systems(OnEnter(GameState::Finished), despawn_level
-                //.run_if(resource_exists::<Level>())
-        )
+            .add_systems(OnEnter(GameState::Finished), despawn_level)
         ;
     }
 }
 
-#[derive(Event)]
-pub enum LevelFinished {
+enum Outcome {
+    None,
     Win(Entity),
     Loss(Entity),
-    Draw
+    Draw,
 }
 
 #[derive(Resource)]
 pub struct Level {
     pub board_configs: Vec<Entity>,
     terminal_condition: TerminalCondition,
+    outcome: Outcome,
 }
 
 pub fn spawn_single_board_level(commands: &mut Commands) -> Entity {
@@ -45,6 +43,7 @@ pub fn spawn_single_board_level(commands: &mut Commands) -> Entity {
         .insert_resource(Level {
             board_configs: vec![board_entity],
             terminal_condition: TerminalCondition::NoneRemaining,
+            outcome: Outcome::None,
         });
     board_entity
 }
@@ -67,8 +66,8 @@ fn despawn_level(
 }
 
 fn check_for_completion(
-    mut events: EventWriter<LevelFinished>,
-    level: Res<Level>,
+    mut state: ResMut<NextState<GameState>>,
+    mut level: ResMut<Level>,
     finished_boards: Query<&BoardFinished, With<GameBoard>>,
 ) {
     use TerminalCondition::*;
@@ -89,12 +88,17 @@ fn check_for_completion(
     }
     match (winner, loser, finished, unfinished) {
         (Some(e), _, n, _) => { 
-            if n == 1 { events.send(LevelFinished::Win(e)); } else { events.send(LevelFinished::Draw); } 
+            state.set(GameState::Finished);
+            if n == 1 { level.outcome = Outcome::Win(e); } else { level.outcome = Outcome::Draw; } 
         },
         (_, Some(e), n, _) => { 
-            if n == 1 { events.send(LevelFinished::Loss(e)); } else { events.send(LevelFinished::Draw); }
+            state.set(GameState::Finished);
+            if n == 1 { level.outcome = Outcome::Loss(e); } else { level.outcome = Outcome::Draw; } 
         },
-        (_, _, _, 0) => { events.send(LevelFinished::Draw); },
+        (_, _, _, 0) => { 
+            state.set(GameState::Finished);
+            level.outcome = Outcome::Draw
+        },
         _ => {},
     }
 }
