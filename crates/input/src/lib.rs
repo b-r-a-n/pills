@@ -16,18 +16,20 @@ struct DropTimer(Timer);
 impl Plugin for InputPlugin {
     fn build(&self, app: &mut App) {
         app
+            .add_systems(OnEnter(GameState::Starting), setup_key_control)
             .add_systems(Update, (
-                setup_key_control,
                 handle_drop_input, 
                 handle_movement_input, 
-                handle_rotate_input
-            ));
+                handle_rotate_input)
+                    .run_if(in_state(GameState::Active))
+            )
+        ;
     }
 }
 
 fn setup_key_control(
     mut commands: Commands,
-    key_control_query: Query<(Entity, &BoardConfig), Added<KeyControlled>>,
+    key_control_query: Query<(Entity, &BoardConfig)>,
 ) {
     for (board, config) in key_control_query.iter() {
         info!("Found a board with key control: {:?}", board);

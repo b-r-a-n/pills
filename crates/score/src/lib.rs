@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use pills_core::*;
+use pills_level::*;
 pub struct ScorePlugin;
 
 impl Plugin for ScorePlugin {
@@ -44,18 +45,19 @@ fn add_score_tracking(
 pub fn update_global_score(
     mut scores: Query<(&mut Score, &mut GlobalScore, Option<&ScoreBoard>)>,
     mut score_boards: Query<&mut Text>,
-    mut events: EventReader<BoardResult>,
+    mut events: EventReader<LevelFinished>,
 ) {
     for event in events.iter() {
-        if let Ok((mut score, mut global_score, maybe_score_board)) = scores.get_mut(event.0) {
-            global_score.0 += score.0;
-            score.0 = 0;
-            if let Some(score_board_ent) = maybe_score_board {
-                if let Ok(mut text) = score_boards.get_mut(score_board_ent.0) {
-                    text.sections[0].value = "Score: 0".to_string();
-                }
-            }
-        }
+        // TODO: Fix score. Just update it for each board entity
+        // if let Ok((mut score, mut global_score, maybe_score_board)) = scores.get_mut(event.0) {
+        //     global_score.0 += score.0;
+        //     score.0 = 0;
+        //     if let Some(score_board_ent) = maybe_score_board {
+        //         if let Ok(mut text) = score_boards.get_mut(score_board_ent.0) {
+        //             text.sections[0].value = "Score: 0".to_string();
+        //         }
+        //     }
+        // }
     }
 }
 

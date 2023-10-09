@@ -9,3 +9,4 @@ repository.workspace = true
 [dependencies]
 bevy.workspace = true
 pills_core.workspace = true
+pills_level.workspace = true

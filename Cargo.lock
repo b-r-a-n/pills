@@ -2567,10 +2567,12 @@ dependencies = [
  "pills_core",
  "pills_game_board",
  "pills_input",
+ "pills_level",
  "pills_menu",
  "pills_pieces",
  "pills_score",
  "pills_sound",
+ "pills_sprites",
  "rand",
 ]
 
@@ -2587,6 +2589,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "pills_level"
+version = "0.1.0-dev"
+dependencies = [
+ "bevy",
+ "pills_core",
+ "pills_input",
+]
+
+[[package]]
 name = "pills_menu"
 version = "0.1.0-dev"
 dependencies = [
@@ -2594,6 +2605,7 @@ dependencies = [
  "pills_auras",
  "pills_core",
  "pills_input",
+ "pills_level",
  "pills_score",
 ]
 
@@ -2611,6 +2623,7 @@ version = "0.1.0-dev"
 dependencies = [
  "bevy",
  "pills_core",
+ "pills_level",
 ]
 
 [[package]]
@@ -2619,6 +2632,16 @@ version = "0.1.0-dev"
 dependencies = [
  "bevy",
  "pills_core",
+]
+
+[[package]]
+name = "pills_sprites"
+version = "0.1.0-dev"
+dependencies = [
+ "bevy",
+ "pills_core",
+ "pills_input",
+ "pills_level",
 ]
 
 [[package]]

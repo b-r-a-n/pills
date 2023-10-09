@@ -3,6 +3,7 @@ use pills_core::*;
 use pills_input::*;
 use pills_score::*;
 use pills_auras::*;
+use pills_level::*;
 
 pub struct MenuPlugin;
 
@@ -16,7 +17,7 @@ impl Plugin for MenuPlugin {
                 (
                     (
                         pause_game, 
-                        handle_game_result
+                        handle_level_finished
                         .after(update_global_score)
                     )
                         .run_if(in_state(AppState::InGame)),
@@ -167,7 +168,6 @@ fn menu(
     mut text_query: Query<&mut Text>,
     mut app_state: ResMut<NextState<AppState>>,
     mut game_state: ResMut<NextState<GameState>>,
-    boards: Query<(Entity, &BoardConfig)>,
     curr_game_state: Res<State<GameState>>,
     focused_windows: Query<(Entity, &Window)>,
 ){
@@ -178,7 +178,10 @@ fn menu(
                 *background_color = Color::DARK_GRAY.into();
                 text.sections[0].style.color = Color::PINK.into();
                 match curr_game_state.get() {
-                    GameState::Finished | GameState::NotStarted => game_state.set(GameState::Starting),
+                    GameState::Finished | GameState::NotStarted => {
+                        spawn_single_board_level(&mut commands);
+                        game_state.set(GameState::Starting);
+                    },
                     GameState::Paused => game_state.set(GameState::Active),
                     _ => {},
                 }
@@ -188,15 +191,7 @@ fn menu(
                 let mut text = text_query.get_mut(children[0]).unwrap();
                 *background_color = Color::DARK_GRAY.into();
                 text.sections[0].style.color = Color::PINK.into();
-                for (board, config) in boards.iter() {
-                    commands
-                        .spawn((
-                            InBoard(board), 
-                            ScorePolicy::default(),
-                            LimitedMovePolicy::new(99, AuraEffect::BoardFinished(BoardFinished::Loss)),
-                        ))
-                    ;
-                }
+                spawn_single_board_level(&mut commands);
                 game_state.set(GameState::Starting);
                 app_state.set(AppState::InGame);
             },
@@ -232,42 +227,57 @@ fn cleanup_menu(
     commands.entity(menu.root_entity).despawn_recursive();
 }
 
-fn handle_game_result(
+fn handle_level_finished(
     mut commands: Commands,
+    mut events: EventReader<LevelFinished>,
     mut game_state: ResMut<NextState<GameState>>,
     mut app_state: ResMut<NextState<AppState>>,
-    mut events: EventReader<BoardResult>,
-    boards: Query<(Entity, Option<&KeyControlled>, Option<&GlobalScore>)>, 
+    boards: Query<(Option<&KeyControlled>, Option<&GlobalScore>)>, 
 ) {
-    let mut show_menu = false;
-    for event in events.iter() {
-        if let Ok((entity, maybe_key_controlled, maybe_score)) = boards.get(event.0) {
-            match (maybe_key_controlled, maybe_score, event.1) {
-                (Some(_), Some(score), result) => {
-                    show_menu = true;
-                    if result {
-                        commands.spawn(MenuTitle::Victory);
-                        commands.spawn_batch([
-                            (MenuOption::NextLevel),
-                            (MenuOption::Exit)
-                        ]);
-                    } else {
-                        commands.spawn(MenuTitle::GameOver);
-                        commands.spawn_batch([
-                            (MenuOption::Play),
-                            (MenuOption::Exit)
-                        ]);
-                        // TODO: This does not belong here
-                        commands.entity(entity).insert(BoardConfig::default());
-                    }
-                    commands.spawn(MenuTitle::Custom(format!("Score: {}", score.0).to_string()));
-                },
-                _ => {}
+    use LevelFinished::*;
+    if events.is_empty() { return; }
+    let (game_over, score) = match events.iter().next().unwrap() {
+        Win(entity) => {
+            if let Ok((maybe_key_controlled, maybe_score)) = boards.get(*entity) {
+                if maybe_key_controlled.is_some() {
+                    (false, maybe_score.map(|s| s.0).unwrap_or(0))
+                } else {
+                    (true, maybe_score.map(|s| s.0).unwrap_or(0))
+                }
+            } else {
+                unreachable!("Win event without a board entity");
             }
-        }
+        },
+        Loss(entity) => {
+            if let Ok((maybe_key_controlled, maybe_score)) = boards.get(*entity) {
+                if maybe_key_controlled.is_some() {
+                    (true, maybe_score.map(|s| s.0).unwrap_or(0))
+                } else {
+                    (false, maybe_score.map(|s| s.0).unwrap_or(0))
+                }
+            } else {
+                unreachable!("Loss event without a board entity");
+            }
+
+        },
+        // TODO: Fix the score here...
+        Draw => { (false, 0) },
+    };
+    if game_over {
+        commands.spawn(MenuTitle::GameOver);
+        commands.spawn_batch([
+            (MenuOption::Play),
+            (MenuOption::Exit)
+        ]);
+    } else {
+        commands.spawn(MenuTitle::Victory);
+        commands.spawn_batch([
+            (MenuOption::NextLevel),
+            (MenuOption::Exit)
+        ]);
     }
-    if show_menu {
-        game_state.set(GameState::NotStarted);
-        app_state.set(AppState::Menu);
-    }
+    commands.spawn(MenuTitle::Custom(format!("Score: {}", score).to_string()));
+    events.clear();
+    game_state.set(GameState::NotStarted);
+    app_state.set(AppState::Menu);
 }

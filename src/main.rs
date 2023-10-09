@@ -8,6 +8,8 @@ use pills_sound::*;
 use pills_menu::*;
 use pills_score::*;
 use pills_auras::*;
+use pills_level::*;
+use pills_sprites::*;
 
 /// Put systems here
 /// 
@@ -118,8 +120,10 @@ fn spawn_game_boards(
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(AuraPluginGroup)
-        .add_plugins(ScorePlugin)
+        .add_plugins(LevelPlugin)
+        .add_plugins(PillsSpritesPluginGroup)
+        //.add_plugins(AuraPluginGroup)
+        //.add_plugins(ScorePlugin)
         .add_plugins(GamePlugin)
         .add_plugins(PiecesPlugin)
         .add_plugins(InputPlugin)
@@ -132,7 +136,6 @@ fn main() {
                 setup_ui_grid,
             )
         )
-        .add_systems(PostStartup,  spawn_game_boards)
         .add_systems(
             Update, 
             bevy::window::close_on_esc)

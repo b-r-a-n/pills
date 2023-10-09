@@ -15,13 +15,11 @@ impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app
             .add_state::<GameState>()
-            .add_event::<BoardResult>()
             .add_event::<PillEvent>()
             .add_event::<ClearEvent>()
             .add_systems(OnEnter(GameState::Starting), start_game)
             .add_systems(OnExit(GameState::Starting), (spawn_viruses, spawn_pill))
-            .add_systems(OnEnter(GameState::Finished), send_results)
-            .add_systems(OnExit(GameState::Finished), cleanup_game)
+            //.add_systems(OnExit(GameState::Finished), cleanup_game)
             .add_systems(
                 Update, 
                 (
@@ -60,9 +58,6 @@ impl BoardBundle {
         }
     }
 }
-
-#[derive(Event)]
-pub struct BoardResult(pub Entity, pub bool);
 
 pub(crate) type SpawnPolicy = fn(&mut VirusSpawner, &mut ThreadRng, u8, u8) -> Option<Virus>;
 
@@ -128,16 +123,6 @@ fn despawn(
         }
     }
 
-}
-
-
-fn send_results(
-    mut events: EventWriter<BoardResult>,
-    query: Query<(Entity, &BoardFinished), With<GameBoard>>,
-) {
-    for (entity, finished) in query.iter() {
-        events.send(BoardResult(entity, match finished { BoardFinished::Loss => { false }, BoardFinished::Win => { true } } ));
-    }
 }
 
 fn spawn_viruses(

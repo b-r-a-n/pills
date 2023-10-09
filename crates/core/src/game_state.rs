@@ -35,6 +35,7 @@ pub(crate) fn check_if_finished(
     query: Query<Entity, (Without<BoardFinished>, With<GameBoard>)>,
 ) {
     if query.is_empty() {
+        info!("[check_if_finished] No unfinished boards left. Setting game state to finished.");
         state.set(GameState::Finished);
     }
 }

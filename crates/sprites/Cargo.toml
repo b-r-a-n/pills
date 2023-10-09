@@ -1,5 +1,6 @@
 [package]
-name = "pills_menu"
+name = "pills_sprites"
+description = "Pills sprites and drawing"
 
 version.workspace = true
 edition.workspace = true
@@ -10,6 +11,4 @@ repository.workspace = true
 bevy.workspace = true
 pills_core.workspace = true
 pills_input.workspace = true
-pills_score.workspace = true
-pills_auras.workspace = true
 pills_level.workspace = true
