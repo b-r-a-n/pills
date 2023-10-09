@@ -1,13 +1,10 @@
 use bevy::prelude::*;
-use pills_input::KeyControlled;
 
 use pills_pieces::*;
 use pills_core::*;
 use pills_input::*;
 use pills_sound::*;
 use pills_menu::*;
-use pills_score::*;
-use pills_auras::*;
 use pills_level::*;
 use pills_sprites::*;
 
@@ -52,69 +49,6 @@ fn setup_ui_grid(
         .add_child(sidebar);
     commands.insert_resource(SidebarContainer(sidebar));
     //commands.insert_resource(ContentContainer(content));
-}
-
-
-fn spawn_game_boards(
-    mut commands: Commands,
-){
-    let config = BoardConfig::default();
-    let (rows, cols) = config.board_size;
-    let (mut width, mut height) = (CELL_SIZE * cols as f32, CELL_SIZE * rows as f32);
-    // Add space to height for the next pill
-    height += CELL_SIZE * 2.0;
-    // Create a border effect
-    width += 8.0;
-    // Spawn the background for all the board components
-    let bg_ent = commands
-        .spawn((
-            SpriteBundle {
-                sprite: Sprite {
-                    color: Color::DARK_GRAY,
-                    custom_size: Some(Vec2::new(width, height)),
-                    ..default()
-                },
-                transform: Transform::from_xyz(0.0, 0.0, 0.0),
-                ..default()
-            },
-        ))
-        .id();
-    let score_board_ent = commands
-        .spawn(
-            Text2dBundle {
-                text: Text::from_section(
-                    "Score: 0".to_string(), 
-                    TextStyle {font_size: 24.0, color: Color::WHITE, ..default()}
-                ),
-                text_anchor: bevy::sprite::Anchor::TopLeft,
-                transform: Transform::from_xyz(-CELL_SIZE * cols as f32 / 2.0, CELL_SIZE * rows as f32 / 2.0 + CELL_SIZE, 1.0),
-                ..default()
-            }
-        )
-        .set_parent(bg_ent)
-        .id();
-    let board_ent = commands
-        .spawn((
-            SpriteBundle {
-                sprite: Sprite {
-                    color: Color::rgb(0.4, 0.4, 0.4),
-                    custom_size: Some(Vec2::new(CELL_SIZE * cols as f32, CELL_SIZE * rows as f32)),
-                    ..default()
-                },
-                transform: Transform::from_xyz(0.0, -CELL_SIZE+4.0, 1.0),
-                ..default()
-            },
-            config,
-            KeyControlled,
-            ScoreBoard(score_board_ent),
-        ))
-        .set_parent(bg_ent)
-        .id();
-    commands
-        .spawn((
-            InBoard(board_ent), 
-            ScorePolicy::default(),
-        ));
 }
 
 fn main() {

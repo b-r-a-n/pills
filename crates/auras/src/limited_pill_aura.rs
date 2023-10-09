@@ -13,7 +13,6 @@ impl Plugin for LimitedPillAuraPlugin {
 
 #[derive(Component)]
 pub struct LimitedPillPolicy {
-    max_pills: u32,
     rem_pills: u32,
     handler: AuraEffect,
 }
@@ -21,7 +20,6 @@ pub struct LimitedPillPolicy {
 impl LimitedPillPolicy {
     pub fn new(max_pills: u32, handler: AuraEffect) -> Self {
         Self {
-            max_pills,
             rem_pills: max_pills,
             handler,
         }

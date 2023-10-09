@@ -19,7 +19,6 @@ impl Plugin for GamePlugin {
             .add_event::<ClearEvent>()
             .add_systems(OnEnter(GameState::Starting), start_game)
             .add_systems(OnExit(GameState::Starting), (spawn_viruses, spawn_pill))
-            //.add_systems(OnExit(GameState::Finished), cleanup_game)
             .add_systems(
                 Update, 
                 (
@@ -79,10 +78,6 @@ impl VirusSpawner {
         } else {
             None
         }
-    }
-
-    fn reset(&mut self) {
-        self.spawned_count = 0;
     }
 
     fn advance(&mut self) {
@@ -148,7 +143,7 @@ fn spawn_viruses(
                 }
             }
         });
-        spawner.reset();
+        spawner.advance();
     }
 }
 

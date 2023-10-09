@@ -2,7 +2,6 @@ use bevy::prelude::*;
 use pills_core::*;
 use pills_input::*;
 use pills_score::*;
-use pills_auras::*;
 use pills_level::*;
 
 pub struct MenuPlugin;

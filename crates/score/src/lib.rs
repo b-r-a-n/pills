@@ -45,19 +45,20 @@ fn add_score_tracking(
 pub fn update_global_score(
     mut scores: Query<(&mut Score, &mut GlobalScore, Option<&ScoreBoard>)>,
     mut score_boards: Query<&mut Text>,
-    mut events: EventReader<LevelFinished>,
+    events: EventReader<LevelFinished>,
+    level: Res<Level>,
 ) {
-    for event in events.iter() {
-        // TODO: Fix score. Just update it for each board entity
-        // if let Ok((mut score, mut global_score, maybe_score_board)) = scores.get_mut(event.0) {
-        //     global_score.0 += score.0;
-        //     score.0 = 0;
-        //     if let Some(score_board_ent) = maybe_score_board {
-        //         if let Ok(mut text) = score_boards.get_mut(score_board_ent.0) {
-        //             text.sections[0].value = "Score: 0".to_string();
-        //         }
-        //     }
-        // }
+    if events.is_empty() { return; }
+    for entity in level.board_configs.iter() {
+        if let Ok((mut score, mut global_score, maybe_score_board)) = scores.get_mut(*entity) {
+            global_score.0 += score.0;
+            score.0 = 0;
+            if let Some(score_board_ent) = maybe_score_board {
+                if let Ok(mut text) = score_boards.get_mut(score_board_ent.0) {
+                    text.sections[0].value = "Score: 0".to_string();
+                }
+            }
+        }
     }
 }
 

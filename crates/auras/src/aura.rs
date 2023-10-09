@@ -71,7 +71,7 @@ fn generate_events(
     }
 }
 
-fn spawn_tooltip_container(
+fn _spawn_tooltip_container(
     mut commands: Commands,
 ) {
     commands.spawn((
@@ -131,7 +131,7 @@ pub fn spawn_layout(
         .id()
 }
 
-fn grid_item(builder: &mut ChildBuilder, bundle: impl Bundle) {
+fn grid_item(builder: &mut ChildBuilder, _: impl Bundle) {
     builder
         .spawn(NodeBundle{
             style: Style {
