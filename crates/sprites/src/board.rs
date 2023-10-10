@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::sprite::Anchor;
 use pills_level::*;
 use pills_core::*;
 
@@ -55,9 +56,26 @@ fn add_board_sprites(
                     },
                     BoardBackground(num_boards),
                 ))
-                .id();
+                .id()
+            ;
+            let info_container = commands
+                .spawn((
+                    SpriteBundle {
+                        sprite: Sprite {
+                            color: Color::BLACK,
+                            custom_size: Some(Vec2::new(width - 8.0, CELL_SIZE * 2.0 - 8.0)),
+                            anchor: Anchor::TopLeft,
+                            ..default()
+                        },
+                        transform: Transform::from_xyz(-width/2.0 + 4.0, height/2.0 - 4.0, 1.0),
+                        ..default()
+                    },
+                ))
+                .set_parent(background_entity)
+                .id()
+            ;
             commands.entity(*board_entity)
-                .insert(
+                .insert((
                     SpriteBundle {
                         sprite: Sprite {
                             color: Color::rgb(0.4, 0.4, 0.4),
@@ -66,8 +84,9 @@ fn add_board_sprites(
                         },
                         transform: Transform::from_xyz(0.0, -CELL_SIZE+4.0, 1.0),
                         ..default()
-                    }
-                )
+                    },
+                    BoardInfoContainer(info_container),
+                ))
                 .set_parent(background_entity)
             ;
             level.root = Some(background_entity);

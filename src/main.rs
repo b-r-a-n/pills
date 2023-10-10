@@ -17,6 +17,12 @@ fn setup_camera(
     commands.spawn(Camera2dBundle::default());
 }
 
+fn setup_player(
+    mut commands: Commands,
+) {
+    commands.spawn(Player);
+}
+
 #[derive(Resource, Deref, DerefMut)]
 struct ContentContainer(Entity);
 
@@ -75,6 +81,7 @@ fn main() {
             (
                 setup_camera, 
                 setup_ui_grid,
+                setup_player,
             )
         )
         .add_systems(

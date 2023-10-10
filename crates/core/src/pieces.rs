@@ -17,16 +17,16 @@ impl Plugin for PiecesPlugin {
     }
 }
 
-#[derive(Component, PartialEq)]
+#[derive(Component, Debug, PartialEq)]
 pub struct BoardPosition {
     pub row: u8,
     pub column: u8,
 }
 
-#[derive(Clone, Copy, Component)]
+#[derive(Clone, Copy, Component, Debug)]
 pub struct Virus(pub CellColor);
 
-#[derive(Clone, Copy, Component)]
+#[derive(Clone, Copy, Component, Debug)]
 pub struct Pill(pub CellColor);
 
 #[derive(Clone, Copy, Component)]

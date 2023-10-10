@@ -63,7 +63,7 @@ fn random_config(difficulty: LevelDifficulty, rng: &mut ThreadRng) -> BoardConfi
     config
 }
 
-pub fn spawn_random_level(commands: &mut Commands, difficulty: LevelDifficulty, rng: &mut ThreadRng) -> Entity {
+pub fn spawn_random_single_board_level(commands: &mut Commands, difficulty: LevelDifficulty, rng: &mut ThreadRng) -> Entity {
     let board_entity = commands
         .spawn((
             random_config(difficulty, rng),

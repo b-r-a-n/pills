@@ -19,8 +19,12 @@ impl Plugin for GamePlugin {
         app
             .add_event::<BoardEvent>()
             .add_state::<GameState>()
-            .add_systems(OnEnter(GameState::Starting), start_game)
-            .add_systems(OnExit(GameState::Starting), (spawn_viruses, spawn_pill))
+            .add_systems(
+                OnEnter(GameState::Starting), 
+                start_game)
+            .add_systems(
+                OnTransition { from: GameState::Starting, to: GameState::Active}, 
+                (spawn_viruses, spawn_pill))
             .add_systems(
                 Update, 
                 (
@@ -34,14 +38,21 @@ impl Plugin for GamePlugin {
                     clear_matches,
                     clear_cleared,
                     despawn,
-                    sync_with_board,
-                )
-                    .run_if(in_state(GameState::Active))
-            )
+                    sync_with_board)
+                        .run_if(in_state(GameState::Active)))
             .add_systems(PostUpdate, check_board_state.run_if(in_state(GameState::Active)))
         ;
     }
 }
+
+#[derive(Component)]
+pub struct Player;
+
+#[derive(Component)]
+pub struct BoardPlayer(pub Entity);
+
+#[derive(Component)]
+pub struct BoardInfoContainer(pub Entity);
 
 #[derive(Bundle)]
 pub struct BoardBundle {
@@ -274,12 +285,15 @@ fn clear_matches(
                         },
                         Cell::Virus(ent, color) => {
                             commands.entity(ent).despawn_recursive();
-                            commands.spawn((
+                            let cell_ent = commands.spawn((
                                 BoardPosition { row: row as u8, column: col as u8 },
                                 ClearedCell {color, was_virus: true},
                                 InBoard(entity)
-                            )).set_parent(entity);
-                            events.send(BoardEvent::virus_removed(entity, ent, Virus(color)));
+                            ))
+                                .set_parent(entity)
+                                .id()
+                            ;
+                            events.send(BoardEvent::virus_removed(entity, cell_ent, Virus(color)));
                             amount += 1;
                         },
                         _ => {},

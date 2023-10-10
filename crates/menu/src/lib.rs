@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use pills_core::*;
-use pills_input::*;
 use pills_level::*;
 use pills_score::*;
 
@@ -26,7 +25,7 @@ impl Plugin for MenuPlugin {
             .add_systems(Startup, startup_menu)
             .add_systems(OnEnter(AppState::Menu), setup_menu)
             .add_systems(OnExit(AppState::Menu), cleanup_menu)
-            .add_systems(OnTransition { from: GameState::Active, to: GameState::Finished }, handle_level_finished)
+            .add_systems(OnEnter(GameState::Finished), handle_level_finished)
         ;
     }
 }
@@ -170,6 +169,7 @@ fn menu(
     mut text_query: Query<&mut Text>,
     mut app_state: ResMut<NextState<AppState>>,
     mut game_state: ResMut<NextState<GameState>>,
+    player_query: Query<Entity, With<Player>>,
     curr_game_state: Res<State<GameState>>,
     finished_count: Res<FinishedCount>,
     focused_windows: Query<(Entity, &Window)>,
@@ -182,7 +182,9 @@ fn menu(
                 text.sections[0].style.color = Color::PINK.into();
                 match curr_game_state.get() {
                     GameState::Finished | GameState::NotStarted => {
-                        spawn_single_board_level(&mut commands);
+                        let player_ent = player_query.single();
+                        let board_ent = spawn_single_board_level(&mut commands);
+                        commands.entity(board_ent).insert(BoardPlayer(player_ent));
                         game_state.set(GameState::Starting);
                     },
                     GameState::Paused => game_state.set(GameState::Active),
@@ -201,7 +203,9 @@ fn menu(
                 if **finished_count > 4 {
                     difficulty = LevelDifficulty::Hard;
                 }
-                spawn_random_level(&mut commands, difficulty, &mut rand::thread_rng());
+                let player_ent = player_query.single();
+                let board_ent = spawn_random_single_board_level(&mut commands, difficulty, &mut rand::thread_rng());
+                commands.entity(board_ent).insert(BoardPlayer(player_ent));
                 game_state.set(GameState::Starting);
                 app_state.set(AppState::InGame);
             },
@@ -242,9 +246,11 @@ fn handle_level_finished(
     mut game_state: ResMut<NextState<GameState>>,
     mut app_state: ResMut<NextState<AppState>>,
     mut finished_count: ResMut<FinishedCount>,
-    boards: Query<(&BoardFinished, Option<&GlobalScore>), With<KeyControlled>>,
+    boards: Query<(Entity, &BoardFinished, &BoardPlayer), With<BoardPlayer>>,
+    scores: Query<&GlobalScore, With<Player>>,
 ) {
-    let (result, score) = boards.single();
+    let (entity, result, player) = boards.single();
+    info!("Board {:?} finished with {:?}", entity, result);
     match result {
         BoardFinished::Win => {
             **finished_count += 1;
@@ -263,7 +269,7 @@ fn handle_level_finished(
             ]);
         },
     }
-    if let Some(score) = score {
+    if let Ok(score) = scores.get(player.0) {
         commands.spawn(MenuTitle::Custom(format!("Score: {}", score.0).to_string()));
     }
     game_state.set(GameState::NotStarted);

@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::sprite::Anchor;
 use pills_core::*;
 use pills_level::*;
 pub struct ScorePlugin;
@@ -18,11 +19,14 @@ impl Plugin for ScorePlugin {
                     .run_if(in_state(GameState::Active)))
             .add_systems(
                 Update, 
-                (animate_floating_scores, apply_score_changes)
+                (animate_floating_scores)
                     .run_if(in_state(GameState::Active)))
             .add_systems(
                 PostUpdate,
-                update_score_board.run_if(in_state(GameState::Active)))
+                (
+                    apply_score_changes,
+                    update_score_board.after(apply_score_changes))
+                        .run_if(in_state(GameState::Active)))
         ;
     }
 }
@@ -63,34 +67,58 @@ pub struct ScoreBoard(pub Entity);
 
 fn add_score_tracking(
     mut commands: Commands,
-    query: Query<(Entity, Option<&ScorePolicy>), (With<GameBoard>, Without<Score>, Without<GlobalScore>)>
+    query: Query<(Entity, Option<&ScorePolicy>, Option<&BoardInfoContainer>, Option<&BoardPlayer>), (With<GameBoard>, Without<Score>)>,
+    player_score: Query<&GlobalScore>,
 ) {
-    for (entity, maybe_policy) in query.iter() {
+    for (entity, maybe_policy, maybe_container, maybe_player) in query.iter() {
         info!("Adding score tracking to {:?}", entity);
         commands.entity(entity)
             .insert(Score(0))
-            .insert(GlobalScore(0));
+        ;
         if maybe_policy.is_none() {
             commands.entity(entity)
                 .insert(ScorePolicy::default());
+        }
+        if let Some(container) = maybe_container {
+            // Add a scoreboard to the container
+            let score_board_ent = commands.spawn((
+                Text2dBundle {
+                    text: Text::from_section(
+                        "Score: 0".to_string(),
+                        TextStyle {font_size: CELL_SIZE, color: Color::WHITE, ..default()}
+                    ),
+                    text_anchor: Anchor::TopLeft,
+                    transform: Transform::from_xyz(0.0, 0.0, 1.0),
+                    ..default()
+                },
+            ))
+                .set_parent(container.0)
+                .id()
+            ;
+            // Add a component to the board entity that points to the scoreboard
+            commands.entity(entity)
+                .insert(ScoreBoard(score_board_ent));
+        }
+        if let Some(player) = maybe_player {
+            if player_score.get(player.0).is_err() {
+                commands.entity(player.0)
+                    .insert(GlobalScore(0));
+            }
         }
     }
 }
 
 fn update_global_score(
-    mut scores: Query<(&mut Score, &mut GlobalScore, Option<&ScoreBoard>)>,
-    mut score_boards: Query<&mut Text>,
+    mut board_scores: Query<(&BoardPlayer, &mut Score)>,
+    mut global_scores: Query<&mut GlobalScore>,
     level: Res<Level>,
 ) {
     for entity in level.board_configs.iter() {
-        if let Ok((mut score, mut global_score, maybe_score_board)) = scores.get_mut(*entity) {
-            global_score.0 += score.0;
-            score.0 = 0;
-            if let Some(score_board_ent) = maybe_score_board {
-                if let Ok(mut text) = score_boards.get_mut(score_board_ent.0) {
-                    text.sections[0].value = "Score: 0".to_string();
-                }
+        if let Ok((player, mut score)) = board_scores.get_mut(*entity) {
+            if let Ok(mut global_score) = global_scores.get_mut(player.0) {
+                global_score.0 += score.0;
             }
+            score.0 = 0;
         }
     }
 }
@@ -122,27 +150,28 @@ fn insert_score_changes(
     policies: Query<&ScorePolicy>,
 ) {
     for event in events.iter() {
+        info!("Got event {:?}", event);
         match event {
             BoardEvent::PillAdded(added) => {
                 if let Ok(policy) = policies.get(added.board) {
                     let f = policy.pill_added;
+                    info!("Spawning score change for {:?}", event);
                     commands.spawn(ScoreChange{
                         score_entity: added.board, 
                         source_entity: added.piece,
                         amount:f(&added.pill)
                     });
-                    info!("Score change for adding a pill: {}", f(&added.pill));
                 }
             },
             BoardEvent::VirusRemoved(removed) => {
                 if let Ok(policy) = policies.get(removed.board) {
                     let f = policy.virus_removed;
+                    info!("Spawning score change for {:?}", event);
                     commands.spawn(ScoreChange{
                         score_entity: removed.board, 
                         source_entity: removed.piece,
                         amount:f(&removed.virus)
                     });
-                    info!("Score change for removing a virus: {}", f(&removed.virus));
                 }
             },
             _ => {},
@@ -153,7 +182,7 @@ fn insert_score_changes(
 fn apply_score_changes(
     mut commands: Commands,
     mut scores: Query<&mut Score>,
-    global_transforms: Query<&GlobalTransform, With<BoardPosition>>,
+    positions: Query<&BoardPosition>,
     score_changes: Query<(Entity, &ScoreChange)>
 ) {
     for (entity, change) in score_changes.iter() {
@@ -178,19 +207,20 @@ fn apply_score_changes(
                 continue;
             }
             // Spawn a floating text at the source entity position
-            if let Ok(global_transform) = global_transforms.get(change.source_entity) {
-                info!("Spawning floating text at {:?}", global_transform.translation());
+            if let Ok(position) = positions.get(change.source_entity) {
+                info!("Spawning floating text at {:?}", position);
                 commands.spawn((
                     Text2dBundle {
                         text: Text::from_section(
                             format!("{}", actual_amount).to_string(),
                             TextStyle {font_size: CELL_SIZE, color: text_color, ..default()}
                         ),
-                        transform: Transform::from_translation(global_transform.translation()),
                         ..default()
                     },
                     DespawnIn(Timer::from_seconds(1.5, TimerMode::Once)),
                     FloatingScoreText,
+                    BoardPosition { row: position.row, column: position.column },
+                    InBoard(change.score_entity),
                 ));
             }
         }
