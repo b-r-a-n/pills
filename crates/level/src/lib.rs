@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use pills_core::*;
 use pills_input::*;
+use rand::Rng;
+use rand::rngs::ThreadRng;
 
 pub enum TerminalCondition {
     FirstWin,
@@ -28,11 +30,54 @@ enum Outcome {
     Draw,
 }
 
+pub enum LevelDifficulty {
+    Easy,
+    Medium,
+    Hard,
+}
+
 #[derive(Resource)]
 pub struct Level {
+    pub root: Option<Entity>,
     pub board_configs: Vec<Entity>,
     terminal_condition: TerminalCondition,
     outcome: Outcome,
+}
+
+fn random_config(difficulty: LevelDifficulty, rng: &mut ThreadRng) -> BoardConfig {
+    let mut config = BoardConfig::default();
+    match difficulty {
+        LevelDifficulty::Easy => {
+            config.drop_period = 0.8;
+            config.max_viruses = rng.gen_range(4..=6);
+        },
+        LevelDifficulty::Medium => {
+            config.drop_period = 0.6;
+            config.max_viruses = rng.gen_range(12..=18);
+        }
+        LevelDifficulty::Hard => {
+            config.drop_period = 0.4;
+            config.max_viruses = rng.gen_range(36..=54);
+        }
+    }
+    config
+}
+
+pub fn spawn_random_level(commands: &mut Commands, difficulty: LevelDifficulty, rng: &mut ThreadRng) -> Entity {
+    let board_entity = commands
+        .spawn((
+            random_config(difficulty, rng),
+            KeyControlled,
+        ))
+        .id();
+    commands
+        .insert_resource(Level {
+            root: None,
+            board_configs: vec![board_entity],
+            terminal_condition: TerminalCondition::NoneRemaining,
+            outcome: Outcome::None,
+        });
+    board_entity
 }
 
 pub fn spawn_single_board_level(commands: &mut Commands) -> Entity {
@@ -41,6 +86,7 @@ pub fn spawn_single_board_level(commands: &mut Commands) -> Entity {
         .id();
     commands
         .insert_resource(Level {
+            root: None,
             board_configs: vec![board_entity],
             terminal_condition: TerminalCondition::NoneRemaining,
             outcome: Outcome::None,
@@ -61,6 +107,10 @@ fn despawn_level(
     for entity in level.board_configs.iter() {
         info!("\t Despawning board {:?}", entity);
         commands.entity(*entity).despawn_recursive();
+    }
+    if let Some(root) = level.root {
+        info!("\t Despawning root {:?}", root);
+        commands.entity(root).despawn_recursive();
     }
     commands.remove_resource::<Level>();
 }

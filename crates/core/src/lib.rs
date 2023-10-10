@@ -45,6 +45,7 @@ impl Plugin for GamePlugin {
 pub struct BoardBundle {
     board: GameBoard,
     fall_timer: FallTimer,
+    virus_spawner: VirusSpawner,
 }
 
 impl BoardBundle {
@@ -53,17 +54,18 @@ impl BoardBundle {
         Self {
             board: GameBoard(Board::new(rows, cols)),
             fall_timer: FallTimer(Timer::from_seconds(0.2, TimerMode::Repeating)),
+            virus_spawner: VirusSpawner { max_viruses: config.max_viruses, ..default()}
         }
     }
 }
 
-pub(crate) type SpawnPolicy = fn(&mut VirusSpawner, &mut ThreadRng, u8, u8) -> Option<Virus>;
+pub type SpawnPolicy = fn(&mut VirusSpawner, &mut ThreadRng, u8, u8) -> Option<Virus>;
 
 #[derive(Component)]
-pub(crate) struct VirusSpawner {
-    max_viruses: usize,
+pub struct VirusSpawner {
+    pub max_viruses: usize,
+    pub spawn_policy: SpawnPolicy,
     spawned_count: usize,
-    spawn_policy: SpawnPolicy,
 }
 
 impl VirusSpawner {

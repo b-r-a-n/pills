@@ -2595,6 +2595,7 @@ dependencies = [
  "bevy",
  "pills_core",
  "pills_input",
+ "rand",
 ]
 
 [[package]]
@@ -2607,6 +2608,7 @@ dependencies = [
  "pills_input",
  "pills_level",
  "pills_score",
+ "rand",
 ]
 
 [[package]]

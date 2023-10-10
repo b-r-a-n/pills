@@ -14,14 +14,10 @@ pub enum GameState {
 pub(crate) fn start_game(
     mut commands: Commands,
     mut state: ResMut<NextState<GameState>>,
-    query: Query<(Entity, &BoardConfig, Option<&VirusSpawner>), Without<GameBoard>>,
+    query: Query<(Entity, &BoardConfig), Without<GameBoard>>,
 ) {
-    for (entity, config, maybe_spawner) in query.iter() {
+    for (entity, config) in query.iter() {
         info!("[start_game] Adding board bundle to entity: {:?}", entity);
-        let mut ent_commands = commands.entity(entity);
-        if maybe_spawner.is_none() {
-            ent_commands.insert(VirusSpawner::default());
-        }
         commands.entity(entity)
             .insert(BoardBundle::with_config(config))
             .insert(NeedsPill)

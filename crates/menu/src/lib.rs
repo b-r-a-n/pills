@@ -11,6 +11,7 @@ impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_state::<AppState>()
+            .init_resource::<FinishedCount>()
             .add_systems(
                 Update,
                 (
@@ -29,6 +30,9 @@ impl Plugin for MenuPlugin {
         ;
     }
 }
+
+#[derive(Default, Deref, DerefMut, Resource)]
+struct FinishedCount(usize);
 
 #[derive(Component)]
 enum MenuTitle {
@@ -167,6 +171,7 @@ fn menu(
     mut app_state: ResMut<NextState<AppState>>,
     mut game_state: ResMut<NextState<GameState>>,
     curr_game_state: Res<State<GameState>>,
+    finished_count: Res<FinishedCount>,
     focused_windows: Query<(Entity, &Window)>,
 ){
     for (interaction, option, mut background_color, children) in &mut interaction_query {
@@ -189,7 +194,14 @@ fn menu(
                 let mut text = text_query.get_mut(children[0]).unwrap();
                 *background_color = Color::DARK_GRAY.into();
                 text.sections[0].style.color = Color::PINK.into();
-                spawn_single_board_level(&mut commands);
+                let mut difficulty = LevelDifficulty::Easy;
+                if **finished_count > 2 {
+                    difficulty = LevelDifficulty::Medium;
+                }
+                if **finished_count > 4 {
+                    difficulty = LevelDifficulty::Hard;
+                }
+                spawn_random_level(&mut commands, difficulty, &mut rand::thread_rng());
                 game_state.set(GameState::Starting);
                 app_state.set(AppState::InGame);
             },
@@ -229,11 +241,13 @@ fn handle_level_finished(
     mut commands: Commands,
     mut game_state: ResMut<NextState<GameState>>,
     mut app_state: ResMut<NextState<AppState>>,
+    mut finished_count: ResMut<FinishedCount>,
     boards: Query<(&BoardFinished, Option<&GlobalScore>), With<KeyControlled>>,
 ) {
     let (result, score) = boards.single();
     match result {
         BoardFinished::Win => {
+            **finished_count += 1;
             commands.spawn(MenuTitle::Victory);
             commands.spawn_batch([
                 (MenuOption::NextLevel),
@@ -241,6 +255,7 @@ fn handle_level_finished(
             ]);
         },
         BoardFinished::Loss => {
+            **finished_count = 0;
             commands.spawn(MenuTitle::GameOver);
             commands.spawn_batch([
                 (MenuOption::Play),

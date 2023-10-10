@@ -26,12 +26,13 @@ impl Plugin for BoardSpritesPlugin {
 fn add_board_sprites(
     mut commands: Commands,
     mut board_count: ResMut<BoardCount>,
-    level: Res<Level>,
+    mut level: ResMut<Level>,
     boards: Query<&BoardConfig>,
 ) {
     let mut num_boards = 0;
     info!("Adding board sprites to level");
-    for board_entity in &level.board_configs {
+    let configs = level.board_configs.clone();
+    for board_entity in configs.iter() {
         if let Ok(config) = boards.get(*board_entity) {
             info!("Adding sprite for board: {:?}", board_entity);
             let (rows, cols) = config.board_size;
@@ -69,6 +70,7 @@ fn add_board_sprites(
                 )
                 .set_parent(background_entity)
             ;
+            level.root = Some(background_entity);
             num_boards += 1;
         }
     }
