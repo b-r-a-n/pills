@@ -2544,7 +2544,6 @@ version = "0.1.0-dev"
 dependencies = [
  "bevy",
  "pills_core",
- "pills_pieces",
  "pills_score",
 ]
 
@@ -2554,7 +2553,6 @@ version = "0.1.0-dev"
 dependencies = [
  "bevy",
  "pills_game_board",
- "pills_pieces",
  "rand",
 ]
 
@@ -2569,7 +2567,6 @@ dependencies = [
  "pills_input",
  "pills_level",
  "pills_menu",
- "pills_pieces",
  "pills_score",
  "pills_sound",
  "pills_sprites",
@@ -2609,14 +2606,6 @@ dependencies = [
  "pills_level",
  "pills_score",
  "rand",
-]
-
-[[package]]
-name = "pills_pieces"
-version = "0.1.0-dev"
-dependencies = [
- "bevy",
- "pills_game_board",
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 use bevy::prelude::*;
-use pills_pieces::*;
 use super::*;
+use pills_core::*;
 
 #[derive(Component)]
 pub struct MovesContainer;
@@ -59,20 +59,20 @@ fn display_remaining(
 
 fn count_moves(
     mut commands: Commands,
-    mut events: EventReader<AuraEvent>,
+    mut events: EventReader<BoardEvent>,
     mut policies: Query<(&mut LimitedMovePolicy, &InBoard)>
 ) {
     if events.is_empty() { return }
     for event in events.iter() {
         match event {
-            AuraEvent::PieceMoved(b, _) => {
+            BoardEvent::PillMoved(movement) => {
                 for (mut policy, board) in policies.iter_mut() {
-                    if board.0 == *b {
+                    if board.0 == movement.board {
                         policy.rem_moves -= 1;
                         if policy.rem_moves == 0 {
                             match &policy.handler {
                                 AuraEffect::BoardFinished(result) => {
-                                    commands.entity(*b).insert(*result);
+                                    commands.entity(board.0).insert(*result);
                                 }
                             }
                         }

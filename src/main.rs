@@ -1,12 +1,13 @@
 use bevy::prelude::*;
 
-use pills_pieces::*;
 use pills_core::*;
 use pills_input::*;
 use pills_sound::*;
 use pills_menu::*;
 use pills_level::*;
 use pills_sprites::*;
+use pills_auras::*;
+use pills_score::*;
 
 /// Put systems here
 /// 
@@ -63,7 +64,7 @@ fn main() {
         .add_plugins(LevelPlugin)
         .add_plugins(PillsSpritesPluginGroup)
         //.add_plugins(AuraPluginGroup)
-        //.add_plugins(ScorePlugin)
+        .add_plugins(ScorePlugin)
         .add_plugins(GamePlugin)
         .add_plugins(PiecesPlugin)
         .add_plugins(InputPlugin)

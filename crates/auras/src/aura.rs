@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use pills_pieces::*;
 use pills_core::*;
 
 pub(crate) struct AuraPlugin;
@@ -7,8 +6,8 @@ pub(crate) struct AuraPlugin;
 impl Plugin for AuraPlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_event::<AuraEvent>()
-            .add_systems(Update, (generate_events, handle_hover));
+            .add_systems(Update, handle_hover)
+        ;
     }
 }
 
@@ -18,12 +17,6 @@ struct ScoreChange(i32);
 
 pub enum AuraEffect {
     BoardFinished(BoardFinished),
-}
-#[derive(Event)]
-pub(crate) enum AuraEvent {
-    PillAdded(Entity, Entity, Pill),
-    VirusRemoved(Entity, Entity, Virus),
-    PieceMoved(Entity, Entity),
 }
 
 #[derive(Component)]
@@ -45,30 +38,6 @@ struct AuraOwner(Entity);
 pub struct AuraBundle {
     text: AuraText,
     owner: AuraOwner,
-}
-
-fn generate_events(
-    mut events: EventWriter<AuraEvent>,
-    mut pill_events: EventReader<PillEvent>,
-    pills_added: Query<(Entity, &Parent, &Pill), Added<PivotPiece>>,
-    cells_removed: Query<(Entity, &Parent, &ClearedCell), Added<ClearedCell>>,
-) {
-    for (entity, parent, pill) in pills_added.iter() {
-        events.send(AuraEvent::PillAdded(parent.get(), entity, *pill));
-    }
-    for (entity, parent, cell) in cells_removed.iter() {
-        if cell.was_virus {
-            events.send(AuraEvent::VirusRemoved(parent.get(), entity, Virus(cell.color)));
-        }
-    }
-    for event in pill_events.iter() {
-        match event {
-            PillEvent::PillMoved(board, pill) => {
-                events.send(AuraEvent::PieceMoved(*board, *pill));
-            },
-            _ => {},
-        }
-    }
 }
 
 fn _spawn_tooltip_container(

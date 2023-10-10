@@ -4,19 +4,21 @@ use pills_game_board::*;
 use rand::{thread_rng, Rng};
 use rand::rngs::ThreadRng;
 
-pub use pills_pieces::*;
+pub use pieces::*;
 pub use game_state::*;
+pub use events::*;
 
 mod game_state;
+mod events;
+mod pieces;
 
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app
+            .add_event::<BoardEvent>()
             .add_state::<GameState>()
-            .add_event::<PillEvent>()
-            .add_event::<ClearEvent>()
             .add_systems(OnEnter(GameState::Starting), start_game)
             .add_systems(OnExit(GameState::Starting), (spawn_viruses, spawn_pill))
             .add_systems(
@@ -165,6 +167,7 @@ fn spawn_pill(
 fn add_pill_to_board(
     mut commands: Commands,
     mut boards: Query<(Entity, &mut GameBoard), (With<NeedsPill>, Without<NeedsSpawn>, Without<NeedsDrop>, Without<NeedsSync>)>,
+    mut events: EventWriter<BoardEvent>,
     next_pieces: Query<(Entity, &Pill, &NextPill, &InBoard)>
 ) {
     // For each pill marked with NextPill
@@ -183,6 +186,7 @@ fn add_pill_to_board(
                 continue;
             }
             board.set(row, col, Cell::Pill(piece_ent, pill.0, orientation));
+            events.send(BoardEvent::pill_added(board_ent, piece_ent, *pill));
             commands.entity(piece_ent)
                 .remove::<NextPill>()
                 .insert(BoardPosition { row: row as u8, column: col as u8 })
@@ -242,7 +246,7 @@ fn check_board_state(
 fn clear_matches(
     mut commands: Commands,
     mut board_query: Query<(Entity, &mut GameBoard), (With<NeedsResolve>, Without<ResolveTimer>)>,
-    mut events: EventWriter<ClearEvent>,
+    mut events: EventWriter<BoardEvent>,
 ) {
     for (entity, mut board) in board_query.iter_mut() {
         let next_board = board.resolve(|l, r| l.color() == r.color());
@@ -254,6 +258,7 @@ fn clear_matches(
         }
         commands.entity(entity)
             .insert(ResolveTimer(Timer::from_seconds(0.4, TimerMode::Once)));
+        let mut amount = 0;
         for row in 0..board.rows {
             for col in 0..board.cols {
                 if next_board.get(row, col) == Cell::Empty {
@@ -265,6 +270,7 @@ fn clear_matches(
                                 ClearedCell {color, was_virus: false},
                                 InBoard(entity),
                             )).set_parent(entity);
+                            amount += 1;
                         },
                         Cell::Virus(ent, color) => {
                             commands.entity(ent).despawn_recursive();
@@ -273,13 +279,15 @@ fn clear_matches(
                                 ClearedCell {color, was_virus: true},
                                 InBoard(entity)
                             )).set_parent(entity);
+                            events.send(BoardEvent::virus_removed(entity, ent, Virus(color)));
+                            amount += 1;
                         },
                         _ => {},
                     }
                 }
             }
         }
-        events.send(ClearEvent(entity));
+        events.send(BoardEvent::cells_cleared(entity, amount));
         **board = next_board;
     }
 }
@@ -287,7 +295,7 @@ fn clear_matches(
 fn move_pill(
     mut commands: Commands,
     mut board_query: Query<&mut GameBoard, Without<NeedsSync>>,
-    mut events: EventWriter<PillEvent>,
+    mut events: EventWriter<BoardEvent>,
     query: Query<(Entity, &BoardPosition, &InBoard, &Move), With<PivotPiece>>,
 ) {
     for (entity, pos, board_entity, movement) in query.iter() {
@@ -306,11 +314,11 @@ fn move_pill(
                     }
                 },
             }
-            if board.move_pill(from, to) {
-                commands.entity(entity).remove::<Move>();
+            if from != to && board.move_pill(from, to) {
                 commands.entity(**board_entity).insert(NeedsSync);
-                events.send(PillEvent::PillMoved(**board_entity, entity));
+                events.send(BoardEvent::pill_moved(**board_entity, entity, *movement));
             }
+            commands.entity(entity).remove::<Move>();
         }
     }
 }
@@ -318,7 +326,7 @@ fn move_pill(
 fn rotate_pill(
     mut commands: Commands,
     mut board_query: Query<&mut GameBoard, Without<NeedsSync>>,
-    mut events: EventWriter<PillEvent>,
+    mut events: EventWriter<BoardEvent>,
     query: Query<(Entity, &BoardPosition, &InBoard, &Rotate), With<PivotPiece>>,
 ) {
     for (entity, pos, board_entity, rotation) in query.iter() {
@@ -328,7 +336,7 @@ fn rotate_pill(
             if board.rotate_pill(from, to) { 
                 commands.entity(entity).remove::<Rotate>();
                 commands.entity(**board_entity).insert(NeedsSync);
-                events.send(PillEvent::PillRotated(**board_entity, entity))
+                events.send(BoardEvent::pill_moved(**board_entity, entity, *rotation))
             } 
         }
     }
@@ -401,7 +409,7 @@ fn sync_with_board(
     }
 }
 
-#[derive(Component, Debug)]
+#[derive(Clone, Copy, Component, Debug)]
 pub enum Move {
     Left,
     Right,
@@ -410,7 +418,7 @@ pub enum Move {
 #[derive(Component, Debug)]
 pub struct Drop;
 
-#[derive(Component, Debug)]
+#[derive(Clone, Copy, Component, Debug)]
 pub enum Rotate {
     Left,
     Right
@@ -485,12 +493,3 @@ pub struct FallTimer(pub Timer);
 
 #[derive(Component, Deref, DerefMut)]
 struct ResolveTimer(pub Timer);
-
-#[derive(Event, Debug)]
-pub enum PillEvent {
-    PillMoved(Entity, Entity),
-    PillRotated(Entity, Entity),
-}
-
-#[derive(Event, Debug)]
-pub struct ClearEvent(Entity);

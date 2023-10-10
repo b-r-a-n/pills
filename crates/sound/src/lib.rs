@@ -7,7 +7,11 @@ impl Plugin for SoundPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_systems(Startup, setup_resources)
-            .add_systems(Update, (play_pill_sound, play_clear_sound));
+            .add_systems(
+                Update,
+                play_sound
+                    .run_if(in_state(GameState::Active)))
+            ;
     }
 }
 
@@ -28,39 +32,38 @@ fn setup_resources(
     commands.insert_resource(AssetHandles { move_sound, rotate_sound, pop_sound });
 }
 
-fn play_pill_sound(
+fn play_sound(
     mut commands: Commands,
-    mut events: EventReader<PillEvent>,
+    mut events: EventReader<BoardEvent>,
     sound_handles: Res<AssetHandles>,
 ) {
+    // TODO: This should have some type of board scoping
     if events.is_empty() { return }
     for event in events.iter() {
         match event {
-            PillEvent::PillMoved(_, _) => {
+            BoardEvent::PillMoved(movement) => {
+                match movement.movement {
+                    Movement::Direction(_) => {
+                        commands.spawn(AudioBundle {
+                            source: sound_handles.move_sound.clone(),
+                            settings: PlaybackSettings::DESPAWN,
+                        });
+                    },
+                    Movement::Rotation(_) => {
+                        commands.spawn(AudioBundle {
+                            source: sound_handles.rotate_sound.clone(),
+                            settings: PlaybackSettings::DESPAWN,
+                        });
+                    }
+                }
+            },
+            BoardEvent::CellsCleared(_) => {
                 commands.spawn(AudioBundle {
-                    source: sound_handles.move_sound.clone(),
+                    source: sound_handles.pop_sound.clone(),
                     settings: PlaybackSettings::DESPAWN,
                 });
-            }
-            PillEvent::PillRotated(_, _) =>  {
-                commands.spawn(AudioBundle {
-                    source: sound_handles.rotate_sound.clone(),
-                    settings: PlaybackSettings::DESPAWN,
-                });
-            }
+            },
+            _ => {},
         }
     }
-}
-
-fn play_clear_sound(
-    mut commands: Commands,
-    mut events: EventReader<ClearEvent>,
-    sound_handles: Res<AssetHandles>,
-) {
-    if events.is_empty() { return }
-    commands.spawn(AudioBundle {
-        source: sound_handles.pop_sound.clone(),
-        settings: PlaybackSettings::DESPAWN,
-    });
-    events.clear();
 }
