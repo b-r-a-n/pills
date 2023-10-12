@@ -4,13 +4,11 @@ use pills_game_board::*;
 use rand::{thread_rng, Rng};
 use rand::rngs::ThreadRng;
 
-pub use pieces::*;
 pub use game_state::*;
 pub use events::*;
 
 mod game_state;
 mod events;
-mod pieces;
 
 pub struct GamePlugin;
 
@@ -54,6 +52,24 @@ pub struct BoardPlayer(pub Entity);
 #[derive(Component)]
 pub struct BoardInfoContainer(pub Entity);
 
+#[derive(Component, Debug, PartialEq)]
+pub struct BoardPosition {
+    pub row: u8,
+    pub column: u8,
+}
+
+#[derive(Component, Deref, DerefMut)]
+pub struct GameBoard(pub Board<Entity>);
+
+#[derive(Component)]
+pub struct NextPill(pub u8);
+
+#[derive(Component, Deref, DerefMut)]
+pub struct InBoard(pub Entity);
+
+#[derive(Component)]
+pub struct ClearStack(pub usize);
+
 #[derive(Bundle)]
 pub struct BoardBundle {
     board: GameBoard,
@@ -70,6 +86,18 @@ impl BoardBundle {
             virus_spawner: VirusSpawner { max_viruses: config.max_viruses, ..default()}
         }
     }
+}
+
+#[derive(Clone, Copy, Component, Debug)]
+pub struct Virus(pub CellColor);
+
+#[derive(Clone, Copy, Component, Debug)]
+pub struct Pill(pub CellColor);
+
+#[derive(Clone, Copy, Component)]
+pub struct ClearedCell {
+    pub color: CellColor,
+    pub was_virus: bool,
 }
 
 pub type SpawnPolicy = fn(&mut VirusSpawner, &mut ThreadRng, u8, u8) -> Option<Virus>;
@@ -151,6 +179,7 @@ fn spawn_viruses(
                             virus, 
                             BoardPosition { row, column: col },
                             InBoard(entity),
+                            ClearStack(2),
                         )).id();
                         board.set(row as usize, col as usize, Cell::Virus(ent, virus.0));
                     }
@@ -166,7 +195,6 @@ fn spawn_pill(
     query: Query<Entity, (With<GameBoard>, With<NeedsSpawn>)>
 ) {
     for entity in query.iter() {
-        info!("[spawn_pill] Spawning pill for board: {:?}", entity);
         commands.spawn_batch([
             (Pill(rand_color()), NextPill(0), InBoard(entity)),
             (Pill(rand_color()), NextPill(1), InBoard(entity)),
@@ -192,7 +220,6 @@ fn add_pill_to_board(
                 Some(Orientation::Left) 
             };
             if board.get(row, col) != Cell::Empty {
-                info!("[add_pill_to_board] Pill cannot be added to board {:?} at {}, {}", board_ent, row, col);
                 commands.entity(board_ent).insert(BoardFinished::Loss);
                 continue;
             }
@@ -248,7 +275,6 @@ fn check_board_state(
 ) {
     for (entity, board) in boards.iter() {
         if board.virus_count() < 1 {
-            info!("[check_board_state] Board {:?} has no viruses. Marking as finished", entity);
             commands.entity(entity).insert(BoardFinished::Win);
         }
     }
@@ -257,51 +283,70 @@ fn check_board_state(
 fn clear_matches(
     mut commands: Commands,
     mut board_query: Query<(Entity, &mut GameBoard), (With<NeedsResolve>, Without<ResolveTimer>)>,
+    mut clear_stacks: Query<&mut ClearStack>,
     mut events: EventWriter<BoardEvent>,
 ) {
-    for (entity, mut board) in board_query.iter_mut() {
-        let next_board = board.resolve(|l, r| l.color() == r.color());
+    for (board_id, mut board) in board_query.iter_mut() {
+        let mut next_board = board.resolve(|l, r| l.color() == r.color());
         if next_board == **board {
-            commands.entity(entity)
+            commands.entity(board_id)
                 .insert(NeedsPill)
                 .remove::<NeedsResolve>();
             return;
         }
-        commands.entity(entity)
-            .insert(ResolveTimer(Timer::from_seconds(0.4, TimerMode::Once)));
+        commands.entity(board_id)
+            .insert(ResolveTimer(Timer::from_seconds(0.3, TimerMode::Once)));
         let mut amount = 0;
         for row in 0..board.rows {
             for col in 0..board.cols {
                 if next_board.get(row, col) == Cell::Empty {
+                    let mut cell_id: Option<Entity> = None;
+                    let mut was_virus = false;
+                    let mut color = CellColor::RED;
                     match board.get(row, col) {
-                        Cell::Pill(ent, color, _) => {
-                            commands.entity(ent).despawn_recursive();
-                            commands.spawn((
-                                BoardPosition { row: row as u8, column: col as u8 },
-                                ClearedCell {color, was_virus: false},
-                                InBoard(entity),
-                            )).set_parent(entity);
-                            amount += 1;
+                        Cell::Pill(ent, pill_color, _) => {
+                            cell_id = Some(ent);
+                            color = pill_color;
                         },
-                        Cell::Virus(ent, color) => {
-                            commands.entity(ent).despawn_recursive();
-                            let cell_ent = commands.spawn((
-                                BoardPosition { row: row as u8, column: col as u8 },
-                                ClearedCell {color, was_virus: true},
-                                InBoard(entity)
-                            ))
-                                .set_parent(entity)
-                                .id()
-                            ;
-                            events.send(BoardEvent::virus_removed(entity, cell_ent, Virus(color)));
-                            amount += 1;
+                        Cell::Virus(ent, virus_color) => {
+                            cell_id = Some(ent);
+                            color = virus_color;
+                            was_virus = true;
                         },
                         _ => {},
+                    }
+                    if let Some(cell_id) = cell_id {
+                        let should_clear = if let Ok(mut clear_stack) = clear_stacks.get_mut(cell_id) {
+                            if clear_stack.0 > 0 {
+                                clear_stack.0 -= 1;
+                            }
+                            if clear_stack.0 == 1 {
+                                commands.entity(cell_id).remove::<ClearStack>();
+                            }
+                            clear_stack.0 < 1
+                        } else {
+                            true
+                        };
+                        if should_clear {
+                            commands.entity(cell_id).despawn_recursive();
+                            commands.spawn((
+                                BoardPosition { row: row as u8, column: col as u8 },
+                                ClearedCell { color, was_virus},
+                                InBoard(board_id),
+                            )).set_parent(board_id);
+                            if was_virus {
+                                events.send(BoardEvent::virus_removed(board_id, cell_id, Virus(color)));
+                            }
+                            amount += 1;
+                        } else {
+                            let cell = board.get(row, col);
+                            next_board.set(row, col, cell);
+                        }
                     }
                 }
             }
         }
-        events.send(BoardEvent::cells_cleared(entity, amount));
+        events.send(BoardEvent::cells_cleared(board_id, amount));
         **board = next_board;
     }
 }

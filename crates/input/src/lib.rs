@@ -34,7 +34,7 @@ fn setup_key_control(
     for (board, config) in key_control_query.iter() {
         info!("Found a board with key control: {:?}", board);
         commands.entity(board)
-            .insert(MovementTimer(Timer::from_seconds(0.2, TimerMode::Repeating)))
+            .insert(MovementTimer(Timer::from_seconds(0.15, TimerMode::Repeating)))
             .insert(DropTimer(Timer::from_seconds(config.drop_period, TimerMode::Repeating)));
     }
 }

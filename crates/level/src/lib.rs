@@ -30,6 +30,7 @@ enum Outcome {
     Draw,
 }
 
+#[derive(Clone)]
 pub enum LevelDifficulty {
     Easy,
     Medium,
@@ -42,6 +43,11 @@ pub struct Level {
     pub board_configs: Vec<Entity>,
     terminal_condition: TerminalCondition,
     outcome: Outcome,
+}
+
+#[derive(Clone, Component)]
+pub struct LevelConfig {
+    pub difficulty: LevelDifficulty,
 }
 
 fn random_config(difficulty: LevelDifficulty, rng: &mut ThreadRng) -> BoardConfig {

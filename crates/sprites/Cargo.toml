@@ -12,3 +12,4 @@ bevy.workspace = true
 pills_core.workspace = true
 pills_input.workspace = true
 pills_level.workspace = true
+pills_game_board.workspace = true

@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy::sprite::Anchor;
 use pills_level::*;
 use pills_core::*;
+use super::*;
 
 #[derive(Default, PartialEq, Resource)]
 struct BoardCount(usize);
@@ -31,11 +32,9 @@ fn add_board_sprites(
     boards: Query<&BoardConfig>,
 ) {
     let mut num_boards = 0;
-    info!("Adding board sprites to level");
     let configs = level.board_configs.clone();
     for board_entity in configs.iter() {
         if let Ok(config) = boards.get(*board_entity) {
-            info!("Adding sprite for board: {:?}", board_entity);
             let (rows, cols) = config.board_size;
             let (mut width, mut height) = (CELL_SIZE * cols as f32, CELL_SIZE * rows as f32);
             // Add space to height for the next pill

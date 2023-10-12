@@ -72,7 +72,6 @@ fn main() {
         //.add_plugins(AuraPluginGroup)
         .add_plugins(ScorePlugin)
         .add_plugins(GamePlugin)
-        .add_plugins(PiecesPlugin)
         .add_plugins(InputPlugin)
         .add_plugins(SoundPlugin)
         .add_plugins(MenuPlugin)

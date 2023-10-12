@@ -85,7 +85,7 @@ fn add_score_tracking(
                 Text2dBundle {
                     text: Text::from_section(
                         "Score: 0".to_string(),
-                        TextStyle {font_size: CELL_SIZE, color: Color::WHITE, ..default()}
+                        TextStyle {font_size: 32.0, color: Color::WHITE, ..default()}
                     ),
                     text_anchor: Anchor::TopLeft,
                     transform: Transform::from_xyz(0.0, 0.0, 1.0),
@@ -213,7 +213,7 @@ fn apply_score_changes(
                     Text2dBundle {
                         text: Text::from_section(
                             format!("{}", actual_amount).to_string(),
-                            TextStyle {font_size: CELL_SIZE, color: text_color, ..default()}
+                            TextStyle {font_size: 32.0, color: text_color, ..default()}
                         ),
                         ..default()
                     },

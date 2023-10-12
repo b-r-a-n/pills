@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::ecs::system::EntityCommand;
 use pills_core::*;
 use pills_level::*;
 use pills_score::*;
@@ -33,27 +34,90 @@ impl Plugin for MenuPlugin {
 #[derive(Default, Deref, DerefMut, Resource)]
 struct FinishedCount(usize);
 
-#[derive(Component)]
+#[derive(Clone, Component)]
 enum MenuTitle {
     GameOver,
     Victory,
     Custom(String),
 }
 
-#[derive(Component)]
+impl Into<String> for MenuTitle {
+    fn into(self) -> String {
+        match self {
+            MenuTitle::GameOver => "Game Over".to_string(),
+            MenuTitle::Victory => "Victory".to_string(),
+            MenuTitle::Custom(text) => text.clone(),
+        }
+    }
+}
+
+#[derive(Clone, Component)]
 enum MenuOption {
     Play,
     NextLevel,
+    SpecificLevel,
     Exit,
 }
 
-impl Into<String> for &MenuOption {
+impl Into<String> for MenuOption {
     fn into(self) -> String {
         match self {
             MenuOption::Play => "Play".to_string(),
             MenuOption::NextLevel => "Next Level".to_string(),
+            MenuOption::SpecificLevel => "".to_string(),
             MenuOption::Exit => "Exit".to_string(),
         }
+    }
+}
+
+impl EntityCommand for MenuOption {
+    fn apply(self, id: Entity, world: &mut World) {
+        let value = match self {
+            Self::SpecificLevel => {
+                match world.entity(id).get::<LevelConfig>().and_then(|config| Some(config.difficulty.clone())) {
+                    Some(LevelDifficulty::Easy) => "Easy",
+                    Some(LevelDifficulty::Medium) => "Medium",
+                    Some(LevelDifficulty::Hard) => "Hard",
+                    None => "",
+                }.to_string()
+            },
+            _ => {
+                self.into()
+            },
+        };
+        world.entity_mut(id).insert(ButtonBundle {
+            style: Style {
+                width: Val::Px(400.0),
+                height: Val::Px(80.0),
+                border: UiRect::all(Val::Px(2.0)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            ..default()})
+        .with_children(|parent| {
+            parent.spawn( TextBundle::from_section(
+                value,
+                TextStyle {
+                    font_size: 40.0,
+                    color: Color::WHITE.into(),
+                    ..default()
+                }));
+            })
+        ;
+    }
+}
+
+impl EntityCommand for MenuTitle {
+    fn apply(self, id: Entity, world: &mut World) {
+        world.entity_mut(id).insert(TextBundle::from_section( 
+            self,
+            TextStyle {
+                font_size: 80.0,
+                color: Color::WHITE.into(),
+                ..default()
+            }))
+        ;
     }
 }
 
@@ -92,7 +156,6 @@ fn startup_menu(
     ]);
 }
 
-
 fn setup_menu(
     mut commands: Commands,
     query: Query<(Entity, &MenuOption)>,
@@ -112,52 +175,14 @@ fn setup_menu(
             ..default()})
         .id();
     for (entity, title) in &title_query {
-        commands.entity(entity).insert(
-            TextBundle {
-                text: Text {
-                    sections: vec![TextSection {
-                        value: match title { 
-                            MenuTitle::GameOver => "Game Over".to_string(), 
-                            MenuTitle::Victory => "Victory".to_string(),
-                            MenuTitle::Custom(text) => text.clone(),
-                        },
-                        style: TextStyle {
-                            font_size: 80.0,
-                            color: Color::WHITE.into(),
-                            ..default()
-                        },
-                    }],
-                    alignment: TextAlignment::Center,
-                    linebreak_behavior: bevy::text::BreakLineOn::NoWrap,
-                },
-                ..default()
-            })
+        commands.entity(entity)
+            .add(title.clone())
             .set_parent(root_entity);
     }
     for (entity, option) in &query {
-        commands.entity(entity).insert(ButtonBundle {
-            style: Style {
-                width: Val::Px(400.0),
-                height: Val::Px(80.0),
-                border: UiRect::all(Val::Px(2.0)),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            border_color: Color::WHITE.into(),
-            background_color: Color::BLACK.into(),
-            ..default()
-        })
-        .with_children(|parent| {
-            parent.spawn( TextBundle::from_section(
-                option,
-                TextStyle {
-                    font_size: 40.0,
-                    color: Color::WHITE.into(),
-                    ..default()
-                }));
-            })
-        .set_parent(root_entity);
+        commands.entity(entity)
+            .add(option.clone())
+            .set_parent(root_entity);
     }
     commands.insert_resource(MenuData { root_entity });
 
@@ -165,21 +190,19 @@ fn setup_menu(
 
 fn menu(
     mut commands: Commands,
-    mut interaction_query: Query<(&Interaction, &MenuOption, &mut BackgroundColor, &Children), (Changed<Interaction>, With<Button>)>,
+    mut interaction_query: Query<(Entity, &Interaction, &MenuOption, &mut BackgroundColor, &Children), (Changed<Interaction>, With<Button>)>,
     mut text_query: Query<&mut Text>,
     mut app_state: ResMut<NextState<AppState>>,
     mut game_state: ResMut<NextState<GameState>>,
     player_query: Query<Entity, With<Player>>,
+    level_config_query: Query<&LevelConfig>,
     curr_game_state: Res<State<GameState>>,
     finished_count: Res<FinishedCount>,
     focused_windows: Query<(Entity, &Window)>,
 ){
-    for (interaction, option, mut background_color, children) in &mut interaction_query {
+    for (id, interaction, option, mut background_color, children) in &mut interaction_query {
         match (interaction, option) {
             (Interaction::Pressed, MenuOption::Play) => {
-                let mut text = text_query.get_mut(children[0]).unwrap();
-                *background_color = Color::DARK_GRAY.into();
-                text.sections[0].style.color = Color::PINK.into();
                 match curr_game_state.get() {
                     GameState::Finished | GameState::NotStarted => {
                         let player_ent = player_query.single();
@@ -193,9 +216,6 @@ fn menu(
                 app_state.set(AppState::InGame);
             },
             (Interaction::Pressed, MenuOption::NextLevel) => {
-                let mut text = text_query.get_mut(children[0]).unwrap();
-                *background_color = Color::DARK_GRAY.into();
-                text.sections[0].style.color = Color::PINK.into();
                 let mut difficulty = LevelDifficulty::Easy;
                 if **finished_count > 2 {
                     difficulty = LevelDifficulty::Medium;
@@ -208,6 +228,17 @@ fn menu(
                 commands.entity(board_ent).insert(BoardPlayer(player_ent));
                 game_state.set(GameState::Starting);
                 app_state.set(AppState::InGame);
+            },
+            (Interaction::Pressed, MenuOption::SpecificLevel) => {
+                if let Ok(level_config) = level_config_query.get(id){
+                    let difficulty = level_config.difficulty.clone();
+                    let player_ent = player_query.single();
+                    let board_ent = spawn_random_single_board_level(&mut commands, difficulty, &mut rand::thread_rng());
+                    commands.entity(board_ent).insert(BoardPlayer(player_ent));
+                    game_state.set(GameState::Starting);
+                    app_state.set(AppState::InGame);
+                }
+
             },
             (Interaction::Pressed, MenuOption::Exit) => {
                 let mut text = text_query.get_mut(children[0]).unwrap();
@@ -241,24 +272,28 @@ fn cleanup_menu(
     commands.entity(menu.root_entity).despawn_recursive();
 }
 
+#[derive(Component)]
+struct LastOption;
+
 fn handle_level_finished(
     mut commands: Commands,
     mut game_state: ResMut<NextState<GameState>>,
     mut app_state: ResMut<NextState<AppState>>,
     mut finished_count: ResMut<FinishedCount>,
-    boards: Query<(Entity, &BoardFinished, &BoardPlayer), With<BoardPlayer>>,
+    boards: Query<(&BoardFinished, &BoardPlayer), With<BoardPlayer>>,
     scores: Query<&GlobalScore, With<Player>>,
 ) {
-    let (entity, result, player) = boards.single();
-    info!("Board {:?} finished with {:?}", entity, result);
+    let (result, player) = boards.single();
     match result {
         BoardFinished::Win => {
             **finished_count += 1;
             commands.spawn(MenuTitle::Victory);
             commands.spawn_batch([
-                (MenuOption::NextLevel),
-                (MenuOption::Exit)
+                (MenuOption::SpecificLevel, LevelConfig { difficulty: LevelDifficulty::Easy }),
+                (MenuOption::SpecificLevel, LevelConfig { difficulty: LevelDifficulty::Medium }),
+                (MenuOption::SpecificLevel, LevelConfig { difficulty: LevelDifficulty::Hard }),
             ]);
+            commands.spawn((MenuOption::Exit, LastOption));
         },
         BoardFinished::Loss => {
             **finished_count = 0;
