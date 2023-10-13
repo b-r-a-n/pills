@@ -13,4 +13,5 @@ pills_input.workspace = true
 pills_score.workspace = true
 pills_auras.workspace = true
 pills_level.workspace = true
+pills_ui.workspace = true
 rand.workspace = true

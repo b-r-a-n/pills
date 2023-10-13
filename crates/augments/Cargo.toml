@@ -1,0 +1,14 @@
+[package]
+name = "pills_augments"
+description = "Add base game customization via configurable augmentations."
+
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+bevy.workspace = true
+pills_core.workspace = true
+pills_game_board.workspace = true
+pills_ui.workspace = true

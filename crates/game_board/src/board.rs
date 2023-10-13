@@ -87,9 +87,11 @@ impl<T: Clone + Copy + PartialEq> Board<T> {
         }
     }
 
-    pub fn resolve<F>(&self, cmp: F) -> Self where
+    pub fn resolve<F>(&self, cmp: F) -> (Self, Vec<u8>) where
         F: Fn(Cell<T>, Cell<T>) -> bool {
         let mut new_board = self.clone();
+        let mut match_mask: Vec<u8> = vec![0; new_board.cells.len()];
+        let mut mask_val = 1;
         for row in 0..self.rows {
             let mut matches = 1;
             let mut pills = if self.get(row, 0).is_pill() { 1 } else { 0 };
@@ -100,8 +102,11 @@ impl<T: Clone + Copy + PartialEq> Board<T> {
                 } else {
                     if matches >= 4 && pills >= 1 {
                         for i in 0..matches {
+                            let index = self.get_index(row, col-i-1);
+                            match_mask[index] = mask_val;
                             new_board.remove_piece(row, col - i - 1);
                         }
+                        mask_val += 1;
                     }
                     matches = 1;
                     pills = if self.get(row, col).is_pill() { 1 } else { 0 };
@@ -109,8 +114,11 @@ impl<T: Clone + Copy + PartialEq> Board<T> {
             }
             if matches >= 4 && pills >= 1 {
                 for i in 0..matches {
+                    let index = self.get_index(row, self.cols - i - 1);
+                    match_mask[index] = mask_val;
                     new_board.remove_piece(row, self.cols - i - 1);
                 }
+                mask_val += 1;
             }
         }
         for col in 0..self.cols {
@@ -123,8 +131,11 @@ impl<T: Clone + Copy + PartialEq> Board<T> {
                 } else {
                     if matches >= 4 && pills >= 1 {
                         for i in 0..matches {
+                            let index = self.get_index(row-i-1, col);
+                            match_mask[index] = mask_val;
                             new_board.remove_piece(row - i - 1, col);
                         }
+                        mask_val += 1;
                     }
                     matches = 1;
                     pills = if self.get(row, col).is_pill() { 1 } else { 0 };
@@ -132,11 +143,14 @@ impl<T: Clone + Copy + PartialEq> Board<T> {
             }
             if matches >= 4 && pills >= 1 {
                 for i in 0..matches {
+                    let index = self.get_index(self.rows - i - 1, col);
+                    match_mask[index] = mask_val;
                     new_board.remove_piece(self.rows - i - 1, col);
                 }
+                mask_val += 1;
             }
         }
-        new_board
+        (new_board, match_mask)
     }
 
     pub fn next(&self) -> Self {
@@ -197,6 +211,11 @@ impl<T: Clone + Copy + PartialEq> Board<T> {
     pub fn get(&self, row: usize, col: usize) -> Cell<T> {
         // TODO panic if row or col is out of bounds
         return self.cells[row * self.cols + col];
+    }
+
+    pub fn get_index(&self, row: usize, col: usize) -> usize {
+        return row * self.cols + col;
+
     }
 
     pub fn get_paired(&self, row: usize, col: usize) -> (Cell<T>, Option<(Cell<T>, usize, usize)>) {
@@ -486,7 +505,8 @@ mod tests {
             cols: 2,
             cells: vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Pill(0,CellColor::RED, None), Cell::<u32>::Empty],
         };
-        let next_board = board.resolve(|a, b| a.color().is_some() && a.color() == b.color());
+        let (next_board, mask) = board.resolve(|a, b| a.color().is_some() && a.color() == b.color());
+        assert_eq!(mask, vec![1, 0, 1, 0, 1, 0, 1, 0]);
         assert_eq!(next_board.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty]);
     }
 
@@ -497,7 +517,8 @@ mod tests {
             cols: 4,
             cells: vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Pill(0,CellColor::RED, None), Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty],
         };
-        let next_board = board.resolve(|a, b| a.color().is_some() && a.color() == b.color());
+        let (next_board, mask) = board.resolve(|a, b| a.color().is_some() && a.color() == b.color());
+        assert_eq!(mask, vec![1, 1, 1, 1, 0, 0, 0, 0]);
         assert_eq!(next_board.cells, vec![Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty]);
     }
 
@@ -508,7 +529,8 @@ mod tests {
             cols: 2,
             cells: vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty],
         };
-        let next_board = board.resolve(|a, b| a.color().is_some() && a.color() == b.color());
+        let (next_board, mask) = board.resolve(|a, b| a.color().is_some() && a.color() == b.color());
+        assert_eq!(mask, vec![0, 0, 0, 0, 0, 0, 0, 0]);
         assert_eq!(next_board.cells, vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty]);
     }
 
@@ -519,7 +541,7 @@ mod tests {
             cols: 4,
             cells: vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty],
         };
-        let next_board = board.resolve(|a, b| a.color().is_some() && a.color() == b.color());
+        let (next_board, _) = board.resolve(|a, b| a.color().is_some() && a.color() == b.color());
         assert_eq!(next_board.cells, vec![Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Virus(0, CellColor::RED), Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty, Cell::<u32>::Empty]);
     }
 
@@ -536,7 +558,7 @@ mod tests {
                 Cell::Empty, Cell::Empty, 
                 Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below)), 
                 Cell::Pill(0, CellColor::BLUE, Some(Orientation::Below))]};
-        let next_board = board.resolve(|a, b| a.color().is_some() && a.color() == b.color());
+        let (next_board, _) = board.resolve(|a, b| a.color().is_some() && a.color() == b.color());
         assert_eq!(next_board.cells, 
             vec![
                 Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, 

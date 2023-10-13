@@ -26,6 +26,8 @@ pub struct VirusRemoved {
     pub board: Entity,
     pub piece: Entity,
     pub virus: Virus,
+    pub row: u8,
+    pub col: u8,
 }
 
 #[derive(Debug)]
@@ -71,8 +73,8 @@ impl BoardEvent {
         Self::PillAdded(PillAdded { board, piece, pill })
     }
 
-    pub(crate) fn virus_removed(board: Entity, piece: Entity, virus: Virus) -> Self {
-        Self::VirusRemoved(VirusRemoved { board, piece, virus })
+    pub(crate) fn virus_removed(board: Entity, piece: Entity, virus: Virus, row: u8, col: u8) -> Self {
+        Self::VirusRemoved(VirusRemoved { board, piece, virus, row, col })
     }
 
     pub(crate) fn pill_moved(board: Entity, piece: Entity, movement: impl Into<Movement>) -> Self {

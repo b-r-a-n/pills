@@ -68,7 +68,10 @@ pub struct NextPill(pub u8);
 pub struct InBoard(pub Entity);
 
 #[derive(Component)]
-pub struct ClearStack(pub usize);
+pub struct Stacked(pub usize);
+
+#[derive(Component)]
+pub struct RemoveStack(pub usize);
 
 #[derive(Bundle)]
 pub struct BoardBundle {
@@ -179,7 +182,7 @@ fn spawn_viruses(
                             virus, 
                             BoardPosition { row, column: col },
                             InBoard(entity),
-                            ClearStack(2),
+                            Stacked(6),
                         )).id();
                         board.set(row as usize, col as usize, Cell::Virus(ent, virus.0));
                     }
@@ -196,8 +199,8 @@ fn spawn_pill(
 ) {
     for entity in query.iter() {
         commands.spawn_batch([
-            (Pill(rand_color()), NextPill(0), InBoard(entity)),
-            (Pill(rand_color()), NextPill(1), InBoard(entity)),
+            (Pill(rand_color()), NextPill(0), InBoard(entity), RemoveStack(2)),
+            (Pill(rand_color()), NextPill(1), InBoard(entity), RemoveStack(2)),
         ]);
         commands.entity(entity).remove::<NeedsSpawn>();
     }
@@ -283,17 +286,37 @@ fn check_board_state(
 fn clear_matches(
     mut commands: Commands,
     mut board_query: Query<(Entity, &mut GameBoard), (With<NeedsResolve>, Without<ResolveTimer>)>,
-    mut clear_stacks: Query<&mut ClearStack>,
+    mut stacks: Query<&mut Stacked>,
+    mut remove_stacks: Query<&mut RemoveStack>,
     mut events: EventWriter<BoardEvent>,
 ) {
     for (board_id, mut board) in board_query.iter_mut() {
-        let mut next_board = board.resolve(|l, r| l.color() == r.color());
+        let (mut next_board, mask) = board.resolve(|l, r| l.color() == r.color());
         if next_board == **board {
             commands.entity(board_id)
                 .insert(NeedsPill)
                 .remove::<NeedsResolve>();
             return;
         }
+
+        // Process the mask to check the masked cells for remove_stack components
+        // Mask : u8 that identifies match groups
+        // MaskLookup : map from the mask value to a bool indicating if the match group has a remove stack component
+        let mut mask_lookup: Vec<Option<usize>> = vec![None; mask.len()];
+        for (index, cell) in board.cells.iter().enumerate() {
+            let mask_index = mask[index] as usize;
+            if mask_index > 0 {
+                if let Cell::Pill(id, _, _) = cell {
+                    if let Ok(remove_stack) = remove_stacks.get(*id) {
+                        let stack_val = mask_lookup[mask_index].unwrap_or(0);
+                        if remove_stack.0 > stack_val {
+                            mask_lookup[mask_index] = Some(remove_stack.0);
+                        }
+                    }
+                }
+            }
+        }
+
         commands.entity(board_id)
             .insert(ResolveTimer(Timer::from_seconds(0.3, TimerMode::Once)));
         let mut amount = 0;
@@ -316,14 +339,18 @@ fn clear_matches(
                         _ => {},
                     }
                     if let Some(cell_id) = cell_id {
-                        let should_clear = if let Ok(mut clear_stack) = clear_stacks.get_mut(cell_id) {
-                            if clear_stack.0 > 0 {
-                                clear_stack.0 -= 1;
+                        let should_clear = if let Ok(mut stacks) = stacks.get_mut(cell_id) {
+                            let cell_index = board.get_index(row, col);
+                            let mask_index = mask[cell_index] as usize;
+                            let stacks_removed = mask_lookup[mask_index].unwrap_or(1);
+                            if stacks.0 > 0 {
+                                let removed_amount = std::cmp::min(stacks_removed, stacks.0);
+                                stacks.0 -= removed_amount;
                             }
-                            if clear_stack.0 == 1 {
-                                commands.entity(cell_id).remove::<ClearStack>();
+                            if stacks.0 == 1 {
+                                commands.entity(cell_id).remove::<Stacked>();
                             }
-                            clear_stack.0 < 1
+                            stacks.0 < 1
                         } else {
                             true
                         };
@@ -335,7 +362,7 @@ fn clear_matches(
                                 InBoard(board_id),
                             )).set_parent(board_id);
                             if was_virus {
-                                events.send(BoardEvent::virus_removed(board_id, cell_id, Virus(color)));
+                                events.send(BoardEvent::virus_removed(board_id, cell_id, Virus(color), row as u8, col as u8));
                             }
                             amount += 1;
                         } else {

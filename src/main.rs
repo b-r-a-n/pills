@@ -6,7 +6,7 @@ use pills_sound::*;
 use pills_menu::*;
 use pills_level::*;
 use pills_sprites::*;
-use pills_auras::*;
+use pills_ui::*;
 use pills_score::*;
 
 /// Put systems here
@@ -67,6 +67,7 @@ fn print_state_change(
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(PillsUiPlugin)
         .add_plugins(LevelPlugin)
         .add_plugins(PillsSpritesPluginGroup)
         //.add_plugins(AuraPluginGroup)

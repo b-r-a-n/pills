@@ -44,6 +44,7 @@ pub struct GlobalScore(pub usize);
 pub struct ScoreChange {
     pub score_entity: Entity, 
     pub source_entity: Entity,
+    pub position: Option<(u8, u8)>,
     pub amount: i32
 }
 
@@ -150,15 +151,14 @@ fn insert_score_changes(
     policies: Query<&ScorePolicy>,
 ) {
     for event in events.iter() {
-        info!("Got event {:?}", event);
         match event {
             BoardEvent::PillAdded(added) => {
                 if let Ok(policy) = policies.get(added.board) {
                     let f = policy.pill_added;
-                    info!("Spawning score change for {:?}", event);
                     commands.spawn(ScoreChange{
                         score_entity: added.board, 
                         source_entity: added.piece,
+                        position: None,
                         amount:f(&added.pill)
                     });
                 }
@@ -166,10 +166,10 @@ fn insert_score_changes(
             BoardEvent::VirusRemoved(removed) => {
                 if let Ok(policy) = policies.get(removed.board) {
                     let f = policy.virus_removed;
-                    info!("Spawning score change for {:?}", event);
                     commands.spawn(ScoreChange{
                         score_entity: removed.board, 
                         source_entity: removed.piece,
+                        position: Some((removed.row, removed.col)),
                         amount:f(&removed.virus)
                     });
                 }
@@ -182,7 +182,6 @@ fn insert_score_changes(
 fn apply_score_changes(
     mut commands: Commands,
     mut scores: Query<&mut Score>,
-    positions: Query<&BoardPosition>,
     score_changes: Query<(Entity, &ScoreChange)>
 ) {
     for (entity, change) in score_changes.iter() {
@@ -207,7 +206,8 @@ fn apply_score_changes(
                 continue;
             }
             // Spawn a floating text at the source entity position
-            if let Ok(position) = positions.get(change.source_entity) {
+            info!("Want to spawn floating text for {:?}", change.source_entity);
+            if let Some(position) = change.position {
                 info!("Spawning floating text at {:?}", position);
                 commands.spawn((
                     Text2dBundle {
@@ -219,7 +219,7 @@ fn apply_score_changes(
                     },
                     DespawnIn(Timer::from_seconds(1.5, TimerMode::Once)),
                     FloatingScoreText,
-                    BoardPosition { row: position.row, column: position.column },
+                    BoardPosition { row: position.0, column: position.1 },
                     InBoard(change.score_entity),
                 ));
             }

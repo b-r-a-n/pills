@@ -3,6 +3,7 @@ use bevy::ecs::system::EntityCommand;
 use pills_core::*;
 use pills_level::*;
 use pills_score::*;
+use pills_ui::*;
 
 pub struct MenuPlugin;
 
@@ -289,9 +290,9 @@ fn handle_level_finished(
             **finished_count += 1;
             commands.spawn(MenuTitle::Victory);
             commands.spawn_batch([
-                (MenuOption::SpecificLevel, LevelConfig { difficulty: LevelDifficulty::Easy }),
-                (MenuOption::SpecificLevel, LevelConfig { difficulty: LevelDifficulty::Medium }),
-                (MenuOption::SpecificLevel, LevelConfig { difficulty: LevelDifficulty::Hard }),
+                (MenuOption::SpecificLevel, LevelConfig { difficulty: LevelDifficulty::Easy }, Tooltip("Play an easy level".to_string())),
+                (MenuOption::SpecificLevel, LevelConfig { difficulty: LevelDifficulty::Medium }, Tooltip("Play a medium level".to_string())),
+                (MenuOption::SpecificLevel, LevelConfig { difficulty: LevelDifficulty::Hard }, Tooltip("Play a hard level".to_string())),
             ]);
             commands.spawn((MenuOption::Exit, LastOption));
         },

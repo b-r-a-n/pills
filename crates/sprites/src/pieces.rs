@@ -11,7 +11,7 @@ impl Plugin for PieceSpritesPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_systems(Startup, setup_resources)
-            .add_systems(Update, (add_sprites, remove_stack_indicator))
+            .add_systems(Update, (add_sprites, update_stack_indicator))
             .add_systems(
                 PostUpdate, 
                 update_transforms
@@ -27,6 +27,9 @@ const BLUE_COLOR : Color = Color::rgb(0.0/255.0, 194.0/255.0, 215.0/255.0);
 
 #[derive(Resource, Deref, DerefMut)]
 struct PieceAtlasHandle(Handle<TextureAtlas>);
+
+#[derive(Component, Debug, Clone)]
+struct StackIndicator;
 
 enum SpritePiece {
     Virus(Virus),
@@ -54,17 +57,19 @@ impl EntityCommand for SpritePiece {
                             transform,
                             ..default() 
                     });
-                    if let Some(stack) = world.get::<ClearStack>(id) {
+                    if let Some(stack) = world.get::<Stacked>(id) {
                         if stack.0 < 1 { return; }
-                        world.spawn(Text2dBundle {
-                            text: Text::from_section(
-                                "+", 
-                                TextStyle {
-                                    font_size: 64.0,
-                                    ..default()}),
-                            transform: Transform::from_xyz(0.0, 0.0, 100.0),
-                            text_anchor: Anchor::BottomLeft,
-                            ..default()})
+                        world.spawn((
+                            Text2dBundle {
+                                text: Text::from_section(
+                                    format!("{}", stack.0), 
+                                    TextStyle {
+                                        font_size: 64.0,
+                                        ..default()}),
+                                transform: Transform::from_xyz(0.0, 0.0, 100.0),
+                                text_anchor: Anchor::BottomLeft,
+                                ..default()},
+                            StackIndicator))
                             .set_parent(id)
                         ;
                     }
@@ -101,16 +106,19 @@ impl EntityCommand for SpritePiece {
                             transform,
                             ..default() 
                     });
-                    if let Some(stack) = world.get::<ClearStack>(id) {
+                    if let Some(stack) = world.get::<Stacked>(id) {
                         if stack.0 < 1 { return; }
-                        world.spawn(Text2dBundle {
-                            text: Text::from_section(
-                                "+", 
-                                TextStyle {
-                                    font_size: 16.0,
-                                    ..default()}),
-                            ..default()})
-                        .set_parent(id)
+                        world.spawn((
+                            Text2dBundle {
+                                text: Text::from_section(
+                                    format!("{}", stack.0), 
+                                    TextStyle {
+                                        font_size: 16.0,
+                                        ..default()}),
+                                ..default()},
+                            StackIndicator
+                        ))
+                            .set_parent(id)
                         ;
                     }
                 }
@@ -130,13 +138,17 @@ fn setup_resources(
     commands.insert_resource(PieceAtlasHandle(texture_atlas_handle));
 }
 
-fn remove_stack_indicator(
-    mut commands: Commands,
-    mut removed: RemovedComponents<ClearStack>,
+fn update_stack_indicator(
+    mut stack_indicators: Query<&mut Text, With<StackIndicator>>,
+    changed_stacks: Query<(&Children, &Stacked), Changed<Stacked>>,
 ) {
-    for entity in &mut removed {
-        // TODO: Just remove the node associated with the clear stack
-        commands.entity(entity).despawn_descendants();
+    for (children, stack) in &changed_stacks {
+        for child in children {
+            if let Ok(mut stack_text) = stack_indicators.get_mut(*child) {
+                stack_text.sections[0].value = format!("{}", stack.0);
+                continue;
+            }
+        }
     }
 }
 
