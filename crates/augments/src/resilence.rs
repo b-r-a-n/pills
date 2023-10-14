@@ -9,14 +9,14 @@ pub struct Resilience {
 pub(crate) fn apply(
     mut commands: Commands,
     augments: Query<(Entity, &Resilience)>,
-    pieces: Query<(Entity, AnyOf<(&Pill, &Virus)>)>,
+    pieces: Query<(Entity, AnyOf<(&Pill, &Virus)>), Or<(Added<Pill>, Added<Virus>)>>,
 ) {
     for (augment_id, augment) in &augments {
         for (id, piece) in &pieces {
             if (augment.filter)(piece) {
-                commands.entity(id).insert(Stacked(2));
+                info!("Applying resilence to {:?}:{:?}", id, piece);
+                commands.entity(id).insert(Stacked(augment.amount as usize));
             }
         }
-        commands.entity(augment_id).despawn_recursive();
     }
 }

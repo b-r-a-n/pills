@@ -8,6 +8,7 @@ use pills_level::*;
 use pills_sprites::*;
 use pills_ui::*;
 use pills_score::*;
+use pills_augments::*;
 
 /// Put systems here
 /// 
@@ -70,7 +71,7 @@ fn main() {
         .add_plugins(PillsUiPlugin)
         .add_plugins(LevelPlugin)
         .add_plugins(PillsSpritesPluginGroup)
-        //.add_plugins(AuraPluginGroup)
+        .add_plugins(AugmentPlugin)
         .add_plugins(ScorePlugin)
         .add_plugins(GamePlugin)
         .add_plugins(InputPlugin)
@@ -82,6 +83,7 @@ fn main() {
                 setup_camera, 
                 setup_ui_grid,
                 setup_player,
+                //|mut commands: Commands| { add_augment(&mut commands, SUPERBUG); },
             )
         )
         .add_systems(

@@ -11,4 +11,5 @@ repository.workspace = true
 bevy.workspace = true
 pills_core.workspace = true
 pills_input.workspace = true
+pills_augments.workspace = true
 rand.workspace = true

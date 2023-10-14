@@ -9,14 +9,14 @@ pub struct Potency {
 pub(crate) fn apply(
     mut commands: Commands,
     augments: Query<(Entity, &Potency)>,
-    pieces: Query<(Entity, &Pill)>,
+    pieces: Query<(Entity, &Pill), Added<Pill>>,
 ) {
     for (augment_id, augment) in &augments {
         for (id, piece) in &pieces {
             if (augment.filter)((Some(piece), None)) {
-                commands.entity(id).insert(RemoveStack(2));
+                info!("Applying potency to {:?}:{:?}", id, piece);
+                commands.entity(id).insert(RemoveStack(augment.amount as usize));
             }
         }
-        commands.entity(augment_id).despawn_recursive();
     }
 }

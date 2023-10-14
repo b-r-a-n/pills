@@ -205,10 +205,7 @@ fn apply_score_changes(
             if actual_amount == 0 {
                 continue;
             }
-            // Spawn a floating text at the source entity position
-            info!("Want to spawn floating text for {:?}", change.source_entity);
             if let Some(position) = change.position {
-                info!("Spawning floating text at {:?}", position);
                 commands.spawn((
                     Text2dBundle {
                         text: Text::from_section(

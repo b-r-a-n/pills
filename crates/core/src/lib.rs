@@ -182,7 +182,6 @@ fn spawn_viruses(
                             virus, 
                             BoardPosition { row, column: col },
                             InBoard(entity),
-                            Stacked(6),
                         )).id();
                         board.set(row as usize, col as usize, Cell::Virus(ent, virus.0));
                     }
@@ -199,8 +198,8 @@ fn spawn_pill(
 ) {
     for entity in query.iter() {
         commands.spawn_batch([
-            (Pill(rand_color()), NextPill(0), InBoard(entity), RemoveStack(2)),
-            (Pill(rand_color()), NextPill(1), InBoard(entity), RemoveStack(2)),
+            (Pill(rand_color()), NextPill(0), InBoard(entity)),
+            (Pill(rand_color()), NextPill(1), InBoard(entity)),
         ]);
         commands.entity(entity).remove::<NeedsSpawn>();
     }

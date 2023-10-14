@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use pills_core::*;
 use pills_input::*;
+use pills_augments::*;
 use rand::Rng;
 use rand::rngs::ThreadRng;
 
@@ -76,6 +77,12 @@ pub fn spawn_random_single_board_level(commands: &mut Commands, difficulty: Leve
             KeyControlled,
         ))
         .id();
+    commands.spawn_empty()
+        .add(random_harmful_augment(rng))
+        .insert(InBoard(board_entity));
+    commands.spawn_empty()
+        .add(random_helpful_augment(rng))
+        .insert(InBoard(board_entity));
     commands
         .insert_resource(Level {
             root: None,

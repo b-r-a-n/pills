@@ -2546,6 +2546,7 @@ dependencies = [
  "pills_core",
  "pills_game_board",
  "pills_ui",
+ "rand",
 ]
 
 [[package]]
@@ -2602,6 +2603,7 @@ name = "pills_level"
 version = "0.1.0-dev"
 dependencies = [
  "bevy",
+ "pills_augments",
  "pills_core",
  "pills_input",
  "rand",
