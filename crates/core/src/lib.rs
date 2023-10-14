@@ -286,7 +286,7 @@ fn clear_matches(
     mut commands: Commands,
     mut board_query: Query<(Entity, &mut GameBoard), (With<NeedsResolve>, Without<ResolveTimer>)>,
     mut stacks: Query<&mut Stacked>,
-    mut remove_stacks: Query<&mut RemoveStack>,
+    remove_stacks: Query<&RemoveStack>,
     mut events: EventWriter<BoardEvent>,
 ) {
     for (board_id, mut board) in board_query.iter_mut() {
@@ -419,10 +419,10 @@ fn rotate_pill(
             let from = (pos.row as usize, pos.column as usize);
             let to = match rotation { Rotate::Left => Orientation::Left, Rotate::Right => Orientation::Right };
             if board.rotate_pill(from, to) { 
-                commands.entity(entity).remove::<Rotate>();
                 commands.entity(**board_entity).insert(NeedsSync);
                 events.send(BoardEvent::pill_moved(**board_entity, entity, *rotation))
             } 
+            commands.entity(entity).remove::<Rotate>();
         }
     }
 }
