@@ -28,9 +28,7 @@ impl Plugin for GamePlugin {
                 (
                     add_pill_to_board, 
                     spawn_pill, 
-                    move_pill, 
-                    drop_pill,
-                    rotate_pill,
+                    apply_pill_movement,
                     drop_pieces,
                     resolve_timer,
                     clear_matches,
@@ -58,7 +56,7 @@ pub struct BoardPosition {
     pub column: u8,
 }
 
-#[derive(Component, Deref, DerefMut)]
+#[derive(Component, Debug, Deref, DerefMut)]
 pub struct GameBoard(pub Board<Entity>);
 
 #[derive(Component)]
@@ -72,6 +70,16 @@ pub struct Stacked(pub usize);
 
 #[derive(Component)]
 pub struct RemoveStack(pub usize);
+
+#[derive(Clone, Copy, Debug)]
+pub enum AreaOfEffect {
+    Radius(u8),
+    Row,
+    Column,
+}
+
+#[derive(Component)]
+pub struct Explosive(pub AreaOfEffect);
 
 #[derive(Bundle)]
 pub struct BoardBundle {
@@ -182,6 +190,8 @@ fn spawn_viruses(
                             virus, 
                             BoardPosition { row, column: col },
                             InBoard(entity),
+                            Stacked(0),
+                            Explosive(AreaOfEffect::Radius(0)),
                         )).id();
                         board.set(row as usize, col as usize, Cell::Virus(ent, virus.0));
                     }
@@ -198,8 +208,8 @@ fn spawn_pill(
 ) {
     for entity in query.iter() {
         commands.spawn_batch([
-            (Pill(rand_color()), NextPill(0), InBoard(entity)),
-            (Pill(rand_color()), NextPill(1), InBoard(entity)),
+            (Pill(rand_color()), NextPill(0), InBoard(entity), RemoveStack(0)),
+            (Pill(rand_color()), NextPill(1), InBoard(entity), RemoveStack(0)),
         ]);
         commands.entity(entity).remove::<NeedsSpawn>();
     }
@@ -287,10 +297,11 @@ fn clear_matches(
     mut board_query: Query<(Entity, &mut GameBoard), (With<NeedsResolve>, Without<ResolveTimer>)>,
     mut stacks: Query<&mut Stacked>,
     remove_stacks: Query<&RemoveStack>,
+    explosive: Query<&Explosive>,
     mut events: EventWriter<BoardEvent>,
 ) {
     for (board_id, mut board) in board_query.iter_mut() {
-        let (mut next_board, mask) = board.resolve(|l, r| l.color() == r.color());
+        let (mut next_board, mut mask) = board.resolve(|l, r| l.color() == r.color());
         if next_board == **board {
             commands.entity(board_id)
                 .insert(NeedsPill)
@@ -298,9 +309,87 @@ fn clear_matches(
             return;
         }
 
+        // Update next_board to account for explosions
+        for i in 0..mask.len() {
+            if let Some(explosion) = board.cells[i].get().and_then(|cell_id| explosive.get(cell_id).ok()) {
+                match explosion.0 {
+                    AreaOfEffect::Column => {
+                        let (_, col) = board.get_row_col(i);
+                        let mask_value = mask[i];
+                        for row in 0..board.rows {
+                            next_board.set(row, col, Cell::Empty);
+                            let cell_index = board.get_index(row, col);
+                            mask[cell_index] = mask_value;
+                        }
+                    },
+                    AreaOfEffect::Radius(radius) => {
+                        let (row, col) = board.get_row_col(i);
+                        let mask_value = mask[i];
+                        for r in 1..=radius {
+                            let (mut left, mut right, mut up, mut down) = (false, false, false, false);
+                            if row as i8 - r as i8 >= 0 {
+                                down = true;
+                                next_board.set(row - r as usize, col, Cell::Empty);
+                                let cell_index = board.get_index(row - r as usize, col);
+                                mask[cell_index] = mask_value;
+                            }
+                            if row + (r as usize) < board.rows {
+                                up = true;
+                                next_board.set(row + r as usize, col, Cell::Empty);
+                                let cell_index = board.get_index(row + r as usize, col);
+                                mask[cell_index] = mask_value;
+                            }
+                            if col as i8 - r as i8 >= 0 {
+                                left = true;
+                                next_board.set(row, col - r as usize, Cell::Empty);
+                                let cell_index = board.get_index(row, col - r as usize);
+                                mask[cell_index] = mask_value;
+                            }
+                            if col + (r as usize) < board.cols {
+                                right = true;
+                                next_board.set(row, col + r as usize, Cell::Empty);
+                                let cell_index = board.get_index(row, col + r as usize);
+                                mask[cell_index] = mask_value;
+                            }
+                            if left && up {
+                                next_board.set(row + r as usize, col - r as usize, Cell::Empty);
+                                let cell_index = board.get_index(row + r as usize, col - r as usize);
+                                mask[cell_index] = mask_value;
+                            }
+                            if left && down {
+                                next_board.set(row - r as usize, col - r as usize, Cell::Empty);
+                                let cell_index = board.get_index(row - r as usize, col - r as usize);
+                                mask[cell_index] = mask_value;
+                            }
+                            if right && up {
+                                next_board.set(row + r as usize, col + r as usize, Cell::Empty);
+                                let cell_index = board.get_index(row + r as usize, col + r as usize);
+                                mask[cell_index] = mask_value;
+                            }
+                            if right && down {
+                                next_board.set(row - r as usize, col + r as usize, Cell::Empty);
+                                let cell_index = board.get_index(row - r as usize, col + r as usize);
+                                mask[cell_index] = mask_value;
+                            }
+                        }
+                    },
+                    AreaOfEffect::Row => {
+                        let (row, _) = board.get_row_col(i);
+                        let mask_value = mask[i];
+                        for col in 0..board.cols {
+                            next_board.set(row, col, Cell::Empty);
+                            let cell_index = board.get_index(row, col);
+                            mask[cell_index] = mask_value;
+                        }
+                    },
+                }
+            }
+        }
+
         // Process the mask to check the masked cells for remove_stack components
         // Mask : u8 that identifies match groups
-        // MaskLookup : map from the mask value to a bool indicating if the match group has a remove stack component
+        // MaskLookup : map from the mask value to a value indicating the size of 
+        //   the largest remove stack component (if any) in the match group
         let mut mask_lookup: Vec<Option<usize>> = vec![None; mask.len()];
         for (index, cell) in board.cells.iter().enumerate() {
             let mask_index = mask[index] as usize;
@@ -377,74 +466,92 @@ fn clear_matches(
     }
 }
 
-fn move_pill(
+fn apply_pill_movement(
     mut commands: Commands,
-    mut board_query: Query<&mut GameBoard, Without<NeedsSync>>,
+    mut synced_boards: Query<&mut GameBoard, Without<NeedsSync>>,
     mut events: EventWriter<BoardEvent>,
-    query: Query<(Entity, &BoardPosition, &InBoard, &Move), With<PivotPiece>>,
+    moveable_pieces: Query<(Entity, &BoardPosition, &InBoard, AnyOf<(&Move, &Rotate, &Drop)>), With<PivotPiece>>,
 ) {
-    for (entity, pos, board_entity, movement) in query.iter() {
-        if let Ok(mut board) = board_query.get_mut(**board_entity) {
-            let from = (pos.row as usize, pos.column as usize);
-            let mut to = (pos.row as usize, pos.column as usize);
-            match movement {
-                Move::Left => {
-                    if pos.column > 0 {
-                        to.1 -= 1;
-                    }
+    for (piece_id, pos, board_id, (mv, rotate, drop)) in &moveable_pieces {
+        if let Ok(mut board) = synced_boards.get_mut(**board_id) {
+            let (r1, c1) = (pos.row as usize, pos.column as usize);
+            let (mut r2, mut c2) = (r1, c1);
+            let mut orientation: Option<Orientation> = None;
+            let mut moved = false;
+            let mut rotated = false;
+            let cell = board.get(r1, c1);
+            match (mv, cell) {
+                (Some(&Move::Left), Cell::Pill(_, _, maybe_o)) => { 
+                    let mut offset = 0;
+                    if maybe_o == Some(Orientation::Left) { offset = 1; }
+                    if c1 > offset { c2 -= 1; }
                 },
-                Move::Right => {
-                    if (pos.column as usize) < board.cols - 1 {
-                        to.1 += 1;
-                    }
+                (Some(&Move::Right), Cell::Pill(_, _, maybe_o)) => {
+                    let mut offset = board.cols-1;
+                    if maybe_o == Some(Orientation::Right) { offset = board.cols-2; }
+                    if c1 < offset { c2 += 1; }
+                }
+                _ => {},
+            };
+            match (drop, cell) {
+                (Some(_), Cell::Pill(_, _, maybe_o)) => { 
+                    let mut offset = 0;
+                    if maybe_o == Some(Orientation::Below) { offset = 1; }
+                    if r1 > offset { r2 -= 1; }
                 },
-            }
-            if from != to && board.move_pill(from, to) {
-                commands.entity(**board_entity).insert(NeedsSync);
-                events.send(BoardEvent::pill_moved(**board_entity, entity, *movement));
-            }
-            commands.entity(entity).remove::<Move>();
-        }
-    }
-}
+                _ => {},
+            };
+            if rotate == Some(&Rotate::Left) { orientation = Some(Orientation::Left); }
+            if rotate == Some(&Rotate::Right) { orientation = Some(Orientation::Right); }
+            let needs_move = (r1, c1) != (r2, c2);
+            let wants_rotate = orientation.is_some();
 
-fn rotate_pill(
-    mut commands: Commands,
-    mut board_query: Query<&mut GameBoard, Without<NeedsSync>>,
-    mut events: EventWriter<BoardEvent>,
-    query: Query<(Entity, &BoardPosition, &InBoard, &Rotate), With<PivotPiece>>,
-) {
-    for (entity, pos, board_entity, rotation) in query.iter() {
-        if let Ok(mut board) = board_query.get_mut(**board_entity) {
-            let from = (pos.row as usize, pos.column as usize);
-            let to = match rotation { Rotate::Left => Orientation::Left, Rotate::Right => Orientation::Right };
-            if board.rotate_pill(from, to) { 
-                commands.entity(**board_entity).insert(NeedsSync);
-                events.send(BoardEvent::pill_moved(**board_entity, entity, *rotation))
-            } 
-            commands.entity(entity).remove::<Rotate>();
-        }
-    }
-}
+            if needs_move {
+                // Move without any rotation
+                moved = board.move_pill((r1, c1), (r2, c2));
 
-fn drop_pill(
-    mut commands: Commands,
-    query: Query<(Entity, &BoardPosition, &InBoard), (With<PivotPiece>, With<Drop>)>,
-    mut board_query: Query<&mut GameBoard, Without<NeedsSync>>,
-) {
-    for (entity, pos, board_entity) in query.iter() {
-        if let Ok(mut board) = board_query.get_mut(**board_entity) {
-            if pos.row > 0 && board.move_pill((pos.row as usize, pos.column as usize), (pos.row as usize - 1, pos.column as usize)) {
-                commands.entity(entity).remove::<Drop>();
-                commands.entity(**board_entity).insert(NeedsSync);
+                // Move after rotating
+                if !moved && wants_rotate {
+                    board.move_pill((r2, c2), (r1, c1));
+                    rotated = board.rotate_pill((r1, c1), orientation.unwrap());
+                    moved = rotated && board.move_pill((r1, c1), (r2, c2));
+                }
+
+                // Rotate after move if possible
+                if moved && wants_rotate && !rotated {
+                    rotated = board.rotate_pill((r2, c2), orientation.unwrap());
+                }
+
             } else {
-                commands.entity(entity).remove::<PivotPiece>();
-                commands.entity(**board_entity)
-                    .remove::<NeedsDrop>()
-                    .insert(NeedsResolve);
+                if let Some(orientation) = orientation {
+                    rotated = board.rotate_pill((r1, c1), orientation);
+                }
             }
+
+            if rotated {
+                commands.entity(**board_id).insert(NeedsSync);
+                events.send(BoardEvent::pill_moved(**board_id, piece_id, *rotate.unwrap()));
+            }
+
+            if moved {
+                commands.entity(**board_id).insert(NeedsSync);
+                if c1 != c2 {
+                    events.send(BoardEvent::pill_moved(**board_id, piece_id, *mv.unwrap()));
+                }
+            } else {
+                if drop.is_some() {
+                    info!("Pill cannot move from: {:?}", pos);
+                    info!("Board: {:?}", board);
+                    commands.entity(piece_id).remove::<PivotPiece>();
+                    commands.entity(**board_id)
+                        .remove::<NeedsDrop>()
+                        .insert(NeedsResolve);
+                }
+            }
+            commands.entity(piece_id).remove::<(Move, Rotate, Drop)>();
         }
     }
+
 }
 
 fn drop_pieces(
@@ -494,16 +601,16 @@ fn sync_with_board(
     }
 }
 
-#[derive(Clone, Copy, Component, Debug)]
+#[derive(Clone, Copy, Component, Debug, PartialEq)]
 pub enum Move {
     Left,
     Right,
 }
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, PartialEq)]
 pub struct Drop;
 
-#[derive(Clone, Copy, Component, Debug)]
+#[derive(Clone, Copy, Component, Debug, PartialEq)]
 pub enum Rotate {
     Left,
     Right

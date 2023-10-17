@@ -46,9 +46,40 @@ pub struct Level {
     outcome: Outcome,
 }
 
+impl Level {
+    fn from_config(config: &LevelConfig) -> Self {
+        Level {
+            root: None,
+            board_configs: vec![],
+            terminal_condition: TerminalCondition::NoneRemaining,
+            outcome: Outcome::None,
+        }
+    }
+}
+
 #[derive(Clone, Component)]
 pub struct LevelConfig {
-    pub difficulty: LevelDifficulty,
+    pub budget: u32,
+    pub augments: Vec<Entity>,
+}
+
+impl LevelConfig {
+    pub fn with_budget(budget: u32) -> Self {
+        LevelConfig {
+            budget,
+            augments: vec![],
+        }
+    }
+
+    pub fn add_random_augments(&mut self, commands: &mut Commands) -> &mut Self {
+        while self.budget > 0 {
+            let augment = random_harmful_augment(&mut rand::thread_rng());
+            self.budget -= augment.cost();
+            let id = commands.spawn_empty().add(augment).id();
+            self.augments.push(id);
+        }
+        self
+    }
 }
 
 fn random_config(difficulty: LevelDifficulty, rng: &mut ThreadRng) -> BoardConfig {
@@ -104,6 +135,19 @@ pub fn spawn_single_board_level(commands: &mut Commands) -> Entity {
             terminal_condition: TerminalCondition::NoneRemaining,
             outcome: Outcome::None,
         });
+    board_entity
+}
+
+pub fn spawn_single_board_level_with_config(commands: &mut Commands, level_config: &LevelConfig) -> Entity {
+    let board_entity = commands
+        .spawn((BoardConfig::default(), KeyControlled))
+        .id();
+    for augment_id in &level_config.augments {
+        commands.entity(*augment_id).insert(InBoard(board_entity));
+    }
+    let mut level = Level::from_config(level_config);
+    level.board_configs.push(board_entity);
+    commands.insert_resource(level);
     board_entity
 }
 

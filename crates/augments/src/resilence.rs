@@ -1,21 +1,19 @@
 use super::*;
 
-#[derive(Clone, Copy, Component)]
+#[derive(Clone, Copy, Component, Debug)]
 pub struct Resilience {
     pub amount: u8,
     pub(crate) filter: fn((Option<&Pill>, Option<&Virus>)) -> bool,
 }
 
 pub(crate) fn apply(
-    mut commands: Commands,
-    augments: Query<(Entity, &Resilience)>,
-    pieces: Query<(Entity, AnyOf<(&Pill, &Virus)>), Or<(Added<Pill>, Added<Virus>)>>,
+    augments: Query<&Resilience>,
+    mut pieces: Query<(AnyOf<(&Pill, &Virus)>, &mut Stacked), Or<(Added<Pill>, Added<Virus>)>>,
 ) {
-    for (augment_id, augment) in &augments {
-        for (id, piece) in &pieces {
+    for augment in &augments {
+        for (piece, mut stacked) in &mut pieces {
             if (augment.filter)(piece) {
-                info!("Applying resilence to {:?}:{:?}", id, piece);
-                commands.entity(id).insert(Stacked(augment.amount as usize));
+                stacked.0 += augment.amount as usize;
             }
         }
     }

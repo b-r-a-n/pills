@@ -25,7 +25,7 @@ impl Plugin for MenuPlugin {
                 )
             )
             .add_systems(Startup, startup_menu)
-            .add_systems(OnEnter(AppState::Menu), setup_menu)
+            .add_systems(OnEnter(AppState::Menu),  spawn_menu)
             .add_systems(OnExit(AppState::Menu), cleanup_menu)
             .add_systems(OnEnter(GameState::Finished), handle_level_finished)
         ;
@@ -33,7 +33,7 @@ impl Plugin for MenuPlugin {
 }
 
 #[derive(Default, Deref, DerefMut, Resource)]
-struct FinishedCount(usize);
+struct FinishedCount(u32);
 
 #[derive(Clone, Component)]
 enum MenuTitle {
@@ -42,7 +42,7 @@ enum MenuTitle {
     Custom(String),
 }
 
-impl Into<String> for MenuTitle {
+impl Into<String> for &MenuTitle {
     fn into(self) -> String {
         match self {
             MenuTitle::GameOver => "Game Over".to_string(),
@@ -55,64 +55,133 @@ impl Into<String> for MenuTitle {
 #[derive(Clone, Component)]
 enum MenuOption {
     Play,
-    NextLevel,
     SpecificLevel,
     Exit,
 }
 
-impl Into<String> for MenuOption {
-    fn into(self) -> String {
-        match self {
-            MenuOption::Play => "Play".to_string(),
-            MenuOption::NextLevel => "Next Level".to_string(),
-            MenuOption::SpecificLevel => "".to_string(),
-            MenuOption::Exit => "Exit".to_string(),
-        }
-    }
-}
-
-impl EntityCommand for MenuOption {
-    fn apply(self, id: Entity, world: &mut World) {
-        let value = match self {
-            Self::SpecificLevel => {
-                match world.entity(id).get::<LevelConfig>().and_then(|config| Some(config.difficulty.clone())) {
-                    Some(LevelDifficulty::Easy) => "Easy",
-                    Some(LevelDifficulty::Medium) => "Medium",
-                    Some(LevelDifficulty::Hard) => "Hard",
-                    None => "",
-                }.to_string()
-            },
-            _ => {
-                self.into()
-            },
-        };
-        world.entity_mut(id).insert(ButtonBundle {
-            style: Style {
-                width: Val::Px(400.0),
-                height: Val::Px(80.0),
-                border: UiRect::all(Val::Px(2.0)),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
+fn add_text_button_bundle(world: &mut World, id: Entity, text: &str) {
+    world.entity_mut(id)
+        .insert(
+            ButtonBundle {
+                style: Style {
+                    padding: UiRect {
+                        top: Val::Px(10.0),
+                        bottom: Val::Px(10.0),
+                        ..default()
+                    },
+                    ..default()
+                },
                 ..default()
-            },
-            ..default()})
+            }
+        )
         .with_children(|parent| {
-            parent.spawn( TextBundle::from_section(
-                value,
+            parent.spawn(TextBundle::from_section(
+                text,
                 TextStyle {
                     font_size: 40.0,
                     color: Color::WHITE.into(),
                     ..default()
-                }));
-            })
-        ;
+                },
+            ));
+        });
+}
+
+#[derive(Component)]
+struct SelectedLevelConfig(Entity);
+
+fn add_level_button_bundle_with_icons(world: &mut World, id: Entity) {
+    world.entity_mut(id)
+        .insert(
+            NodeBundle {
+                style: Style { 
+                    width: Val::Px(320.0),
+                    margin: UiRect::all(Val::Px(8.0)),
+                    border: UiRect::all(Val::Px(2.0)),
+                    flex_direction: FlexDirection::Column,
+                    ..default() 
+                },
+                border_color: Color::GRAY.into(),
+                ..default()
+            }
+        )
+        .with_children(|parent| {
+            // Top Section with clickable text
+            parent.spawn((
+                ButtonBundle {
+                    style: Style {
+                        border: UiRect::all(Val::Px(2.0)),
+                        justify_content: JustifyContent::Center,
+                        ..default()
+                    },
+                    ..default()
+                },
+                MenuOption::SpecificLevel,
+                SelectedLevelConfig(id),
+            ))
+            .with_children(|parent| {
+                parent.spawn(TextBundle::from_section(
+                    "Play!",
+                    TextStyle {
+                        font_size: 40.0,
+                        color: Color::WHITE.into(),
+                        ..default()
+                    },
+                ));
+            });
+            // Bottom section with icons
+            parent.spawn(
+                NodeBundle {
+                    style: Style {
+                        flex_direction: FlexDirection::Row,
+                        ..default()
+                    },
+                    background_color: Color::DARK_GRAY.into(),
+                    ..default()
+                }
+            ).with_children(|parent| {
+                // Icon for each augment
+                for _ in 0..=3 {
+                    parent.spawn(
+                        NodeBundle {
+                            style: Style {
+                                margin: UiRect::all(Val::Px(8.0)),
+                                width: Val::Px(32.0),
+                                height: Val::Px(32.0),
+                                ..default()
+                            },
+                            background_color: Color::PINK.into(),
+                            ..default()
+                        }
+                    );
+                }
+            });
+
+        });
+}
+
+struct MenuOptionUI;
+
+impl EntityCommand for MenuOptionUI {
+    fn apply(self, id: Entity, world: &mut World) {
+        match world.entity(id).get::<MenuOption>() {
+            Some(MenuOption::SpecificLevel) => {
+                add_level_button_bundle_with_icons(world, id);
+            },
+            Some(MenuOption::Play) => {
+                add_text_button_bundle(world, id, "Play");
+            },
+            Some(MenuOption::Exit) => {
+                add_text_button_bundle(world, id, "Exit");
+            },
+            _ => {}
+        }
     }
 }
 
 impl EntityCommand for MenuTitle {
     fn apply(self, id: Entity, world: &mut World) {
         world.entity_mut(id).insert(TextBundle::from_section( 
-            self,
+            &self,
             TextStyle {
                 font_size: 80.0,
                 color: Color::WHITE.into(),
@@ -157,11 +226,12 @@ fn startup_menu(
     ]);
 }
 
-fn setup_menu(
+fn spawn_menu(
     mut commands: Commands,
-    query: Query<(Entity, &MenuOption)>,
-    title_query: Query<(Entity, &MenuTitle)>,
+    menu_options: Query<(Entity, &MenuOption)>,
+    menu_titles: Query<(Entity, &MenuTitle)>,
 ) {
+    let (mut header_id, mut options_id, mut footer_id) = (None, None, None);
     let root_entity = commands
         .spawn(NodeBundle {
             style: Style {
@@ -169,21 +239,62 @@ fn setup_menu(
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
                 flex_direction: FlexDirection::Column,
-                justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 ..default()},
             background_color: Color::BLACK.into(),
             ..default()})
+        .with_children(|builder| {
+
+            // Header section
+            header_id = builder.spawn(NodeBundle {
+                style: Style {
+                    flex_direction: FlexDirection::Column,
+                    ..default()
+                },
+                ..default()
+            })
+            .id().into();
+
+            // Options section
+            options_id = builder.spawn(NodeBundle {
+                style: Style {
+                    flex_direction: FlexDirection::Row,
+                    ..default()
+                },
+                ..default()
+            })
+            .id().into();
+
+            // Footer section
+            footer_id = builder.spawn(NodeBundle {
+                style: Style {
+                    flex_direction: FlexDirection::Column,
+                    ..default()
+                },
+                ..default()
+            })
+            .id().into();
+
+        })
         .id();
-    for (entity, title) in &title_query {
-        commands.entity(entity)
+    for (id, title) in &menu_titles {
+        commands.entity(id)
             .add(title.clone())
-            .set_parent(root_entity);
+            .set_parent(header_id.unwrap());
     }
-    for (entity, option) in &query {
-        commands.entity(entity)
-            .add(option.clone())
-            .set_parent(root_entity);
+    for (id, option) in &menu_options {
+        match option {
+            MenuOption::Play | MenuOption::Exit => {
+                commands.entity(id)
+                    .add(MenuOptionUI)
+                    .set_parent(footer_id.unwrap());
+            },
+            MenuOption::SpecificLevel => {
+                commands.entity(id)
+                    .add(MenuOptionUI)
+                    .set_parent(options_id.unwrap());
+            },
+        }
     }
     commands.insert_resource(MenuData { root_entity });
 
@@ -198,7 +309,7 @@ fn menu(
     player_query: Query<Entity, With<Player>>,
     level_config_query: Query<&LevelConfig>,
     curr_game_state: Res<State<GameState>>,
-    finished_count: Res<FinishedCount>,
+    selected_level_config: Query<&SelectedLevelConfig>,
     focused_windows: Query<(Entity, &Window)>,
 ){
     for (id, interaction, option, mut background_color, children) in &mut interaction_query {
@@ -216,30 +327,17 @@ fn menu(
                 }
                 app_state.set(AppState::InGame);
             },
-            (Interaction::Pressed, MenuOption::NextLevel) => {
-                let mut difficulty = LevelDifficulty::Easy;
-                if **finished_count > 2 {
-                    difficulty = LevelDifficulty::Medium;
-                }
-                if **finished_count > 4 {
-                    difficulty = LevelDifficulty::Hard;
-                }
-                let player_ent = player_query.single();
-                let board_ent = spawn_random_single_board_level(&mut commands, difficulty, &mut rand::thread_rng());
-                commands.entity(board_ent).insert(BoardPlayer(player_ent));
-                game_state.set(GameState::Starting);
-                app_state.set(AppState::InGame);
-            },
             (Interaction::Pressed, MenuOption::SpecificLevel) => {
-                if let Ok(level_config) = level_config_query.get(id){
-                    let difficulty = level_config.difficulty.clone();
-                    let player_ent = player_query.single();
-                    let board_ent = spawn_random_single_board_level(&mut commands, difficulty, &mut rand::thread_rng());
-                    commands.entity(board_ent).insert(BoardPlayer(player_ent));
-                    game_state.set(GameState::Starting);
-                    app_state.set(AppState::InGame);
+                // TODO the level config is not on the button entity because of the heirarchy
+                if let Ok(level_config_id) = selected_level_config.get(id) {
+                    if let Ok(level_config) = level_config_query.get(level_config_id.0){
+                        let player_ent = player_query.single();
+                        let board_ent = spawn_single_board_level_with_config(&mut commands, level_config);
+                        commands.entity(board_ent).insert(BoardPlayer(player_ent));
+                        game_state.set(GameState::Starting);
+                        app_state.set(AppState::InGame);
+                    }
                 }
-
             },
             (Interaction::Pressed, MenuOption::Exit) => {
                 let mut text = text_query.get_mut(children[0]).unwrap();
@@ -289,11 +387,11 @@ fn handle_level_finished(
         BoardFinished::Win => {
             **finished_count += 1;
             commands.spawn(MenuTitle::Victory);
-            commands.spawn_batch([
-                (MenuOption::SpecificLevel, LevelConfig { difficulty: LevelDifficulty::Easy }, Tooltip("Play an easy level".to_string())),
-                (MenuOption::SpecificLevel, LevelConfig { difficulty: LevelDifficulty::Medium }, Tooltip("Play a medium level".to_string())),
-                (MenuOption::SpecificLevel, LevelConfig { difficulty: LevelDifficulty::Hard }, Tooltip("Play a hard level".to_string())),
-            ]);
+            for _ in 0..3 {
+                let mut level_config = LevelConfig::with_budget(**finished_count);
+                level_config.add_random_augments(&mut commands);
+                commands.spawn((MenuOption::SpecificLevel, level_config));
+            }
             commands.spawn((MenuOption::Exit, LastOption));
         },
         BoardFinished::Loss => {

@@ -77,6 +77,36 @@ pub struct Board<T: Clone + Copy + PartialEq> {
     pub cells: Vec<Cell<T>>,
 }
 
+impl<T: Clone + Copy + PartialEq> std::fmt::Debug for Board<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut buff = String::new();
+        buff.push_str("\n");
+        for row in (0..self.rows).rev() {
+            let cells = &self.cells[row*self.cols..(row+1)*self.cols].iter().map(|cell| match cell {
+                Cell::Empty => "_",
+                Cell::Pill(_, color, _) => match color {
+                    CellColor::RED => "R",
+                    CellColor::BLUE => "B",
+                    CellColor::YELLOW => "Y",
+                    CellColor::GREEN => "G",
+                    CellColor::ORANGE => "O",
+                    CellColor::PURPLE => "P",
+                },
+                Cell::Virus(_, color) => match color {
+                    CellColor::RED => "r",
+                    CellColor::BLUE => "b",
+                    CellColor::YELLOW => "y",
+                    CellColor::GREEN => "g",
+                    CellColor::ORANGE => "o",
+                    CellColor::PURPLE => "p",
+                }
+            });
+            buff.push_str(&format!("{:?}\n", cells.clone().collect::<Vec<&str>>()));
+        }
+        f.write_str(&buff)
+    }
+}
+
 impl<T: Clone + Copy + PartialEq> Board<T> {
     
     pub fn new(rows: usize, cols: usize) -> Self {
@@ -215,7 +245,10 @@ impl<T: Clone + Copy + PartialEq> Board<T> {
 
     pub fn get_index(&self, row: usize, col: usize) -> usize {
         return row * self.cols + col;
+    }
 
+    pub fn get_row_col(&self, index: usize) -> (usize, usize) {
+        return (index / self.cols, index % self.cols);
     }
 
     pub fn get_paired(&self, row: usize, col: usize) -> (Cell<T>, Option<(Cell<T>, usize, usize)>) {
