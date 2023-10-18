@@ -156,17 +156,17 @@ fn despawn_level(
     query: Query<Entity, With<InBoard>>,
     level: Res<Level>,
 ) {
-    info!("Despawning level");
+    //info!("Despawning level");
     for entity in query.iter() {
-        info!("\t Despawning InBoard entity {:?}", entity);
+        //info!("\t Despawning InBoard entity {:?}", entity);
         commands.entity(entity).despawn_recursive();
     }
     for entity in level.board_configs.iter() {
-        info!("\t Despawning board {:?}", entity);
+        //info!("\t Despawning board {:?}", entity);
         commands.entity(*entity).despawn_recursive();
     }
     if let Some(root) = level.root {
-        info!("\t Despawning root {:?}", root);
+        //info!("\t Despawning root {:?}", root);
         commands.entity(root).despawn_recursive();
     }
     commands.remove_resource::<Level>();

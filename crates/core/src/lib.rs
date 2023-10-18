@@ -94,7 +94,7 @@ impl BoardBundle {
         Self {
             board: GameBoard(Board::new(rows, cols)),
             fall_timer: FallTimer(Timer::from_seconds(0.2, TimerMode::Repeating)),
-            virus_spawner: VirusSpawner { max_viruses: config.max_viruses, ..default()}
+            virus_spawner: VirusSpawner::default(),
         }
     }
 }
@@ -115,35 +115,12 @@ pub type SpawnPolicy = fn(&mut VirusSpawner, &mut ThreadRng, u8, u8) -> Option<V
 
 #[derive(Component)]
 pub struct VirusSpawner {
-    pub max_viruses: usize,
     pub spawn_policy: SpawnPolicy,
-    spawned_count: usize,
-}
-
-impl VirusSpawner {
-    fn spawn(&mut self, rng: &mut ThreadRng, row: u8, col: u8) -> Option<Virus> {
-        if self.max_viruses > self.spawned_count {
-            let result = (self.spawn_policy)(self, rng, row, col);
-            if result.is_some() {
-                self.spawned_count += 1;
-            }
-            result
-        } else {
-            None
-        }
-    }
-
-    fn advance(&mut self) {
-        self.spawned_count = 0;
-        self.max_viruses *= 2;
-    }
 }
 
 impl Default for VirusSpawner {
     fn default() -> Self {
         Self {
-            max_viruses: 1,
-            spawned_count: 0,
             spawn_policy: |_, rng, _, _| {
                 match rng.gen_range(0..4) {
                     0 => Some(Virus(CellColor::RED)),
@@ -175,17 +152,21 @@ fn despawn(
 
 fn spawn_viruses(
     mut commands: Commands,
-    mut query: Query<(Entity, &mut VirusSpawner, &mut GameBoard)>,
+    mut query: Query<(Entity, &mut VirusSpawner, &mut GameBoard, &BoardConfig)>,
 ) {
-    for (entity, mut spawner, mut board) in query.iter_mut() {
+    for (entity, mut spawner, mut board, config) in query.iter_mut() {
         commands.entity(entity).with_children(|builder|{
+            let mut viruses_remaining = config.max_viruses;
+            info!("Spawning up to {} viruses", viruses_remaining);
             for row in 0..(board.rows-1) as u8 {
-                if spawner.max_viruses < 1 {
-                    break;
-                }
                 for col in 0..board.cols as u8 {
+                    if viruses_remaining < 1 {
+                        break;
+                    }
                     let mut rng = thread_rng();
-                    if let Some(virus) = spawner.spawn(&mut rng, row, col) {
+                    let result = (spawner.spawn_policy)(&mut spawner, &mut rng, row, col);
+                    if let Some(virus) = result {
+                        viruses_remaining -= 1;
                         let ent = builder.spawn((
                             virus, 
                             BoardPosition { row, column: col },
@@ -198,7 +179,6 @@ fn spawn_viruses(
                 }
             }
         });
-        spawner.advance();
     }
 }
 
@@ -540,8 +520,6 @@ fn apply_pill_movement(
                 }
             } else {
                 if drop.is_some() {
-                    info!("Pill cannot move from: {:?}", pos);
-                    info!("Board: {:?}", board);
                     commands.entity(piece_id).remove::<PivotPiece>();
                     commands.entity(**board_id)
                         .remove::<NeedsDrop>()

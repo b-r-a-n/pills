@@ -8,11 +8,11 @@ pub struct Urgency {
 const MIN_DROP_PERIOD: f32 = 0.35;
 
 pub(crate) fn apply(
-    augments: Query<&Urgency>,
-    mut boards: Query<&mut BoardConfig, Added<GameBoard>>,
+    augments: Query<(&Urgency, &InBoard), Added<InBoard>>,
+    mut boards: Query<&mut BoardConfig>,
 ) {
-    for augment in &augments {
-        for mut config in &mut boards {
+    for (augment, board_id) in &augments {
+        if let Ok(mut config) = boards.get_mut(**board_id) {
             if config.drop_period > augment.amount {
                 if config.drop_period - augment.amount > MIN_DROP_PERIOD {
                     config.drop_period -= augment.amount;
