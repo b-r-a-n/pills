@@ -11,7 +11,7 @@ impl Plugin for PieceSpritesPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_systems(Startup, setup_resources)
-            .add_systems(Update, (add_sprites, update_stack_indicator))
+            .add_systems(Update, (add_pill_sprites, add_virus_sprites, add_cleared_sprites, update_stack_indicator))
             .add_systems(
                 PostUpdate, 
                 update_transforms
@@ -152,22 +152,40 @@ fn update_stack_indicator(
     }
 }
 
-
-fn add_sprites(
+fn add_pill_sprites(
     mut commands: Commands,
-    atlas_handle: Res<PieceAtlasHandle>,
-    mut viruses: Query<(Entity, &Virus), (Added<Virus>, With<BoardPosition>)>,
     mut pills: Query<(Entity, &Pill), Added<Pill>>,
-    cleared_query: Query<(Entity, &ClearedCell), (Added<ClearedCell>, With<BoardPosition>)>,
+) {
+    for (id, pill) in pills.iter_mut() {
+        commands.entity(id).add(SpritePiece::Pill(pill.clone()));
+    }
+}
+
+fn add_virus_sprites(
+    mut commands: Commands,
+    mut viruses: Query<(Entity, &Virus), (Added<Virus>, With<BoardPosition>)>,
 ) {
     for (id, virus) in viruses.iter_mut() {
         commands.entity(id).add(SpritePiece::Virus(virus.clone()));
     }
-    for (id, pill) in pills.iter_mut() {
-        commands.entity(id).add(SpritePiece::Pill(pill.clone()));
-    }
-    for (entity, cell) in &cleared_query {
-        let color = match cell.color {
+}
+
+fn add_cleared_sprites(
+    mut commands: Commands,
+    atlas_handle: Res<PieceAtlasHandle>,
+    cleared_query: Query<(Entity, &Transform, AnyOf<(&Pill, &Virus)>), (Added<ClearedCell>, With<BoardPosition>)>,
+) {
+    for (entity, transform, (pill, virus)) in &cleared_query {
+        let color = match (pill, virus) {
+            (Some(pill), None) => {
+                pill.0
+            },
+            (None, Some(virus)) => {
+                virus.0
+            },
+            _ => unreachable!()
+        };
+        let color = match color {
             CellColor::RED => RED_COLOR,
             CellColor::YELLOW => YELLOW_COLOR,
             CellColor::BLUE => BLUE_COLOR,
@@ -179,18 +197,21 @@ fn add_sprites(
             .insert(SpriteSheetBundle {
                 sprite: TextureAtlasSprite { index: 3, color, ..default()},
                 texture_atlas: atlas_handle.clone(),
-                transform: Transform::from_scale(Vec3::new(0.5, 0.5, 1.0)),
+                transform: *transform,
                 ..default()
             });
     }
 }
 
 fn update_transforms(
-    mut query: Query<(&BoardPosition, &mut Transform, &InBoard), (Without<NextPill>, Or<(Added<Transform>, Added<BoardPosition>, Changed<BoardPosition>)>)>,
+    mut query: Query<(&BoardPosition, &mut Transform, &InBoard, Option<&ClearedCell>), (Without<NextPill>, Or<(Added<Transform>, Added<BoardPosition>, Added<ClearedCell>, Changed<BoardPosition>)>)>,
     mut next_pieces: Query<(&mut Transform, &NextPill, &InBoard), Or<(Added<NextPill>, Added<Transform>)>>,
     boards: Query<&GameBoard>,
 ) {
-    for (board_position, mut transform, board) in query.iter_mut() {
+    for (board_position, mut transform, board, maybe_cleared) in query.iter_mut() {
+        if maybe_cleared.is_some() {
+            transform.translation.z = 100.0;
+        }
         let board = boards.get(**board).unwrap();
         transform.translation.x = (board_position.column as f32 * CELL_SIZE) - (CELL_SIZE * board.cols as f32) / 2.0 + CELL_SIZE / 2.0;
         transform.translation.y = (board_position.row as f32 * CELL_SIZE) - (CELL_SIZE * board.rows as f32) / 2.0 + CELL_SIZE / 2.0;

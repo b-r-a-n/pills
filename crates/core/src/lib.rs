@@ -106,10 +106,7 @@ pub struct Virus(pub CellColor);
 pub struct Pill(pub CellColor);
 
 #[derive(Clone, Copy, Component)]
-pub struct ClearedCell {
-    pub color: CellColor,
-    pub was_virus: bool,
-}
+pub struct ClearedCell;
 
 pub type SpawnPolicy = fn(&mut VirusSpawner, &mut ThreadRng, u8, u8) -> Option<Virus>;
 
@@ -245,6 +242,21 @@ fn resolve_timer(
                 .insert(NeedsFall)
                 .remove::<ResolveTimer>()
                 .remove::<NeedsResolve>();
+        }
+    }
+}
+
+fn explode_timer(
+    mut commands: Commands,
+    mut timer: Query<(Entity, &mut ExplodeTimer), With<NeedsExplode>>,
+    time: Res<Time>,
+) {
+    for (id, mut timer) in timer.iter_mut() {
+        if timer.tick(time.delta()).just_finished() { 
+            commands.entity(id)
+                .insert(NeedsFall)
+                .remove::<ExplodeTimer>()
+                .remove::<NeedsExplode>();
         }
     }
 }
@@ -423,12 +435,16 @@ fn clear_matches(
                             true
                         };
                         if should_clear {
+                            commands.entity(cell_id).insert(ClearedCell);
+
+                            /**
                             commands.entity(cell_id).despawn_recursive();
                             commands.spawn((
                                 BoardPosition { row: row as u8, column: col as u8 },
                                 ClearedCell { color, was_virus},
                                 InBoard(board_id),
                             )).set_parent(board_id);
+                            */
                             if was_virus {
                                 events.send(BoardEvent::virus_removed(board_id, cell_id, Virus(color), row as u8, col as u8));
                             }
@@ -613,6 +629,9 @@ struct NeedsSpawn;
 struct NeedsDrop;
 
 #[derive(Component, Debug)]
+struct NeedsExplode;
+
+#[derive(Component, Debug)]
 struct NeedsFall;
 
 #[derive(Component, Copy, Clone, Debug, PartialEq)]
@@ -663,3 +682,6 @@ pub struct FallTimer(pub Timer);
 
 #[derive(Component, Deref, DerefMut)]
 struct ResolveTimer(pub Timer);
+
+#[derive(Component, Deref, DerefMut)]
+struct ExplodeTimer(pub Timer);
