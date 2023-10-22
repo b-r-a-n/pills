@@ -3,7 +3,7 @@ use super::*;
 #[derive(Clone, Copy, Component, Debug)]
 pub struct Volatility {
     pub area: AreaOfEffect,
-    pub(crate) filter: fn((Option<&Pill>, Option<&Virus>)) -> bool,
+    pub filter: fn((Option<&Pill>, Option<&Virus>)) -> bool,
 }
 
 pub(crate) fn apply(

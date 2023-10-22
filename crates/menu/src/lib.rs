@@ -4,6 +4,7 @@ use pills_core::*;
 use pills_level::*;
 use pills_score::*;
 use pills_ui::*;
+use pills_augments::*;
 
 pub struct MenuPlugin;
 
@@ -387,11 +388,23 @@ fn handle_level_finished(
         BoardFinished::Win => {
             **finished_count += 1;
             commands.spawn(MenuTitle::Victory);
-            for _ in 0..3 {
+            // Two random configs
+            for _ in 0..2 {
                 let mut level_config = LevelConfig::with_budget(**finished_count);
                 level_config.add_random_augments(&mut commands);
                 commands.spawn((MenuOption::SpecificLevel, level_config));
             }
+            // One specific config
+            let explosive = Volatility { 
+                area: AreaOfEffect::Radius(2), 
+                filter: red_viruses, 
+            };
+            let explosive_id = commands.spawn(explosive).id();
+            let frequency = Frequency { amount: 10 };
+            let frequency_id = commands.spawn(frequency).id();
+            let level_config = LevelConfig::with_augments(vec![explosive_id, frequency_id]);
+            commands.spawn((MenuOption::SpecificLevel, level_config));
+
             commands.spawn((MenuOption::Exit, LastOption));
         },
         BoardFinished::Loss => {

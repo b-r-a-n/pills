@@ -65,9 +65,16 @@ pub struct LevelConfig {
 
 impl LevelConfig {
     pub fn with_budget(budget: u32) -> Self {
-        LevelConfig {
+        Self {
             budget,
             augments: vec![],
+        }
+    }
+
+    pub fn with_augments(augments: Vec<Entity>) -> Self {
+        Self {
+            budget: 0,
+            augments,
         }
     }
 

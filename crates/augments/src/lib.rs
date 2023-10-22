@@ -2,10 +2,10 @@ use bevy::prelude::*;
 use bevy::ecs::system::EntityCommand;
 use pills_core::*;
 use pills_game_board::CellColor;
-use frequency::Frequency;
+pub use frequency::Frequency;
 use resilence::Resilience;
 use potency::Potency;
-use volatility::Volatility;
+pub use volatility::Volatility;
 use urgency::Urgency;
 use rand::prelude::*;
 
@@ -15,51 +15,51 @@ mod resilence;
 mod urgency;
 mod volatility;
 
-fn all_pieces((pill, virus): (Option<&Pill>, Option<&Virus>)) -> bool {
+pub fn all_pieces((pill, virus): (Option<&Pill>, Option<&Virus>)) -> bool {
     return pill.is_some() || virus.is_some()
 }
 
-fn all_pills((pill, _): (Option<&Pill>, Option<&Virus>)) -> bool {
+pub fn all_pills((pill, _): (Option<&Pill>, Option<&Virus>)) -> bool {
     return pill.is_some()
 }
 
-fn all_viruses((_, virus): (Option<&Pill>, Option<&Virus>)) -> bool {
+pub fn all_viruses((_, virus): (Option<&Pill>, Option<&Virus>)) -> bool {
     return virus.is_some()
 }
 
-fn all_red((pill, virus): (Option<&Pill>, Option<&Virus>)) -> bool {
+pub fn all_red((pill, virus): (Option<&Pill>, Option<&Virus>)) -> bool {
     return virus.map(|v| v.0 == CellColor::RED).unwrap_or(false) || pill.map(|p| p.0 == CellColor::RED).unwrap_or(false);
 }
 
-fn all_blue((pill, virus): (Option<&Pill>, Option<&Virus>)) -> bool {
+pub fn all_blue((pill, virus): (Option<&Pill>, Option<&Virus>)) -> bool {
     return virus.map(|v| v.0 == CellColor::BLUE).unwrap_or(false) || pill.map(|p| p.0 == CellColor::BLUE).unwrap_or(false);
 }
 
-fn all_yellow((pill, virus): (Option<&Pill>, Option<&Virus>)) -> bool {
+pub fn all_yellow((pill, virus): (Option<&Pill>, Option<&Virus>)) -> bool {
     return virus.map(|v| v.0 == CellColor::YELLOW).unwrap_or(false) || pill.map(|p| p.0 == CellColor::YELLOW).unwrap_or(false);
 }
 
-fn red_pills((pill, _): (Option<&Pill>, Option<&Virus>)) -> bool {
+pub fn red_pills((pill, _): (Option<&Pill>, Option<&Virus>)) -> bool {
     return pill.map(|p| p.0 == CellColor::RED).unwrap_or(false);
 }
 
-fn blue_pills((pill, _): (Option<&Pill>, Option<&Virus>)) -> bool {
+pub fn blue_pills((pill, _): (Option<&Pill>, Option<&Virus>)) -> bool {
     return pill.map(|p| p.0 == CellColor::BLUE).unwrap_or(false);
 }
 
-fn yellow_pills((pill, _): (Option<&Pill>, Option<&Virus>)) -> bool {
+pub fn yellow_pills((pill, _): (Option<&Pill>, Option<&Virus>)) -> bool {
     return pill.map(|p| p.0 == CellColor::YELLOW).unwrap_or(false);
 }
 
-fn red_viruses((_, virus): (Option<&Pill>, Option<&Virus>)) -> bool {
+pub fn red_viruses((_, virus): (Option<&Pill>, Option<&Virus>)) -> bool {
     return virus.map(|p| p.0 == CellColor::RED).unwrap_or(false);
 }
 
-fn blue_viruses((_, virus): (Option<&Pill>, Option<&Virus>)) -> bool {
+pub fn blue_viruses((_, virus): (Option<&Pill>, Option<&Virus>)) -> bool {
     return virus.map(|p| p.0 == CellColor::BLUE).unwrap_or(false);
 }
 
-fn yellow_viruses((_, virus): (Option<&Pill>, Option<&Virus>)) -> bool {
+pub fn yellow_viruses((_, virus): (Option<&Pill>, Option<&Virus>)) -> bool {
     return virus.map(|p| p.0 == CellColor::YELLOW).unwrap_or(false);
 }
 

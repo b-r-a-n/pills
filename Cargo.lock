@@ -2614,7 +2614,7 @@ name = "pills_menu"
 version = "0.1.0-dev"
 dependencies = [
  "bevy",
- "pills_auras",
+ "pills_augments",
  "pills_core",
  "pills_input",
  "pills_level",

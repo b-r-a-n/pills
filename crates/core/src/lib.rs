@@ -33,6 +33,8 @@ impl Plugin for GamePlugin {
                     resolve_timer,
                     clear_matches,
                     clear_cleared,
+                    check_for_explosions,
+                    resolve_explosions,
                     despawn,
                     sync_with_board)
                         .run_if(in_state(GameState::Active)))
@@ -233,7 +235,7 @@ fn add_pill_to_board(
 
 fn resolve_timer(
     mut commands: Commands,
-    mut timer: Query<(Entity, &mut ResolveTimer), With<NeedsResolve>>,
+    mut timer: Query<(Entity, &mut ResolveTimer), (With<NeedsResolve>, Without<NeedsExplode>)>,
     time: Res<Time>,
 ) {
     for (entity, mut timer) in timer.iter_mut() {
@@ -248,7 +250,7 @@ fn resolve_timer(
 
 fn explode_timer(
     mut commands: Commands,
-    mut timer: Query<(Entity, &mut ExplodeTimer), With<NeedsExplode>>,
+    mut timer: Query<(Entity, &mut ExplodeTimer), With<NeedsResolve>>,
     time: Res<Time>,
 ) {
     for (id, mut timer) in timer.iter_mut() {
@@ -256,7 +258,120 @@ fn explode_timer(
             commands.entity(id)
                 .insert(NeedsFall)
                 .remove::<ExplodeTimer>()
-                .remove::<NeedsExplode>();
+                .remove::<NeedsResolve>();
+        }
+    }
+}
+
+fn check_for_explosions(
+    mut commands: Commands,
+    cleared_cells: Query<(&InBoard, Option<&Explosive>), Added<ClearedCell>>
+) {
+    // Add the Needs Explode tag to the board
+    for (board_id, maybe_explosive) in &cleared_cells {
+        if maybe_explosive.is_some() {
+            commands.entity(**board_id).insert(NeedsExplode);
+        }
+    }
+}
+
+fn resolve_explosions(
+    mut commands: Commands,
+    explosives: Query<(&Explosive, &BoardPosition, &InBoard), With<ClearedCell>>,
+    mut boards: Query<&mut GameBoard, With<NeedsExplode>>,
+) {
+    for (explosion, position, board_id) in &explosives {
+        commands.entity(**board_id).remove::<NeedsExplode>();
+        if let Ok(mut board) = boards.get_mut(**board_id) {
+            match explosion.0 {
+                AreaOfEffect::Radius(radius) => {
+                    let (row, col) = (position.row as usize, position.column as usize);
+                    for r in 1..=radius {
+                        let (mut left, mut right, mut up, mut down) = (false, false, false, false);
+                        if row as i8 - r as i8 >= 0 {
+                            down = true;
+                            let cell = board.get(row - r as usize, col as usize);
+                            if let Some(cell_id) = cell.get() {
+                                commands.entity(cell_id).insert(ClearedCell);
+                            }
+                            board.set(row - r as usize, col, Cell::Empty);
+                        }
+                        if row + (r as usize) < board.rows {
+                            up = true;
+                            let cell = board.get(row + r as usize, col as usize);
+                            if let Some(cell_id) = cell.get() {
+                                commands.entity(cell_id).insert(ClearedCell);
+                            }
+                            board.set(row + r as usize, col, Cell::Empty);
+                        }
+                        if col as i8 - r as i8 >= 0 {
+                            left = true;
+                            let cell = board.get(row, col - r as usize);
+                            if let Some(cell_id) = cell.get() {
+                                commands.entity(cell_id).insert(ClearedCell);
+                            }
+                            board.set(row, col - r as usize, Cell::Empty);
+                        }
+                        if col + (r as usize) < board.cols {
+                            right = true;
+                            let cell = board.get(row, col + r as usize);
+                            if let Some(cell_id) = cell.get() {
+                                commands.entity(cell_id).insert(ClearedCell);
+                            }
+                            board.set(row, col + r as usize, Cell::Empty);
+                        }
+                        if left && up {
+                            let cell = board.get(row + r as usize, col - r as usize);
+                            if let Some(cell_id) = cell.get() {
+                                commands.entity(cell_id).insert(ClearedCell);
+                            }
+                            board.set(row + r as usize, col - r as usize, Cell::Empty);
+                        }
+                        if left && down {
+                            let cell = board.get(row - r as usize, col - r as usize);
+                            if let Some(cell_id) = cell.get() {
+                                commands.entity(cell_id).insert(ClearedCell);
+                            }
+                            board.set(row - r as usize, col - r as usize, Cell::Empty);
+                        }
+                        if right && up {
+                            let cell = board.get(row + r as usize, col + r as usize);
+                            if let Some(cell_id) = cell.get() {
+                                commands.entity(cell_id).insert(ClearedCell);
+                            }
+                            board.set(row + r as usize, col + r as usize, Cell::Empty);
+                        }
+                        if right && down {
+                            let cell = board.get(row - r as usize, col + r as usize);
+                            if let Some(cell_id) = cell.get() {
+                                commands.entity(cell_id).insert(ClearedCell);
+                            }
+                            board.set(row - r as usize, col + r as usize, Cell::Empty);
+                        }
+                    }
+
+                },
+                AreaOfEffect::Column => {
+                    let rows = board.rows;
+                    for row in 0..rows {
+                        let cell = board.get(row, position.column as usize);
+                        if let Some(cell_id) = cell.get() {
+                            commands.entity(cell_id).insert(ClearedCell);
+                        }
+                        board.set(row, position.column as usize, Cell::Empty);
+                    }
+                },
+                AreaOfEffect::Row => {
+                    let cols = board.cols;
+                    for col in 0..cols {
+                        let cell = board.get(position.row as usize, col);
+                        if let Some(cell_id) = cell.get() {
+                            commands.entity(cell_id).insert(ClearedCell);
+                        }
+                        board.set(position.row as usize, col, Cell::Empty);
+                    }
+                },
+            }
         }
     }
 }
@@ -289,93 +404,15 @@ fn clear_matches(
     mut board_query: Query<(Entity, &mut GameBoard), (With<NeedsResolve>, Without<ResolveTimer>)>,
     mut stacks: Query<&mut Stacked>,
     remove_stacks: Query<&RemoveStack>,
-    explosive: Query<&Explosive>,
     mut events: EventWriter<BoardEvent>,
 ) {
     for (board_id, mut board) in board_query.iter_mut() {
-        let (mut next_board, mut mask) = board.resolve(|l, r| l.color() == r.color());
+        let (mut next_board, mask) = board.resolve(|l, r| l.color() == r.color());
         if next_board == **board {
             commands.entity(board_id)
                 .insert(NeedsPill)
                 .remove::<NeedsResolve>();
             return;
-        }
-
-        // Update next_board to account for explosions
-        for i in 0..mask.len() {
-            if let Some(explosion) = board.cells[i].get().and_then(|cell_id| explosive.get(cell_id).ok()) {
-                match explosion.0 {
-                    AreaOfEffect::Column => {
-                        let (_, col) = board.get_row_col(i);
-                        let mask_value = mask[i];
-                        for row in 0..board.rows {
-                            next_board.set(row, col, Cell::Empty);
-                            let cell_index = board.get_index(row, col);
-                            mask[cell_index] = mask_value;
-                        }
-                    },
-                    AreaOfEffect::Radius(radius) => {
-                        let (row, col) = board.get_row_col(i);
-                        let mask_value = mask[i];
-                        for r in 1..=radius {
-                            let (mut left, mut right, mut up, mut down) = (false, false, false, false);
-                            if row as i8 - r as i8 >= 0 {
-                                down = true;
-                                next_board.set(row - r as usize, col, Cell::Empty);
-                                let cell_index = board.get_index(row - r as usize, col);
-                                mask[cell_index] = mask_value;
-                            }
-                            if row + (r as usize) < board.rows {
-                                up = true;
-                                next_board.set(row + r as usize, col, Cell::Empty);
-                                let cell_index = board.get_index(row + r as usize, col);
-                                mask[cell_index] = mask_value;
-                            }
-                            if col as i8 - r as i8 >= 0 {
-                                left = true;
-                                next_board.set(row, col - r as usize, Cell::Empty);
-                                let cell_index = board.get_index(row, col - r as usize);
-                                mask[cell_index] = mask_value;
-                            }
-                            if col + (r as usize) < board.cols {
-                                right = true;
-                                next_board.set(row, col + r as usize, Cell::Empty);
-                                let cell_index = board.get_index(row, col + r as usize);
-                                mask[cell_index] = mask_value;
-                            }
-                            if left && up {
-                                next_board.set(row + r as usize, col - r as usize, Cell::Empty);
-                                let cell_index = board.get_index(row + r as usize, col - r as usize);
-                                mask[cell_index] = mask_value;
-                            }
-                            if left && down {
-                                next_board.set(row - r as usize, col - r as usize, Cell::Empty);
-                                let cell_index = board.get_index(row - r as usize, col - r as usize);
-                                mask[cell_index] = mask_value;
-                            }
-                            if right && up {
-                                next_board.set(row + r as usize, col + r as usize, Cell::Empty);
-                                let cell_index = board.get_index(row + r as usize, col + r as usize);
-                                mask[cell_index] = mask_value;
-                            }
-                            if right && down {
-                                next_board.set(row - r as usize, col + r as usize, Cell::Empty);
-                                let cell_index = board.get_index(row - r as usize, col + r as usize);
-                                mask[cell_index] = mask_value;
-                            }
-                        }
-                    },
-                    AreaOfEffect::Row => {
-                        let (row, _) = board.get_row_col(i);
-                        let mask_value = mask[i];
-                        for col in 0..board.cols {
-                            next_board.set(row, col, Cell::Empty);
-                            let cell_index = board.get_index(row, col);
-                            mask[cell_index] = mask_value;
-                        }
-                    },
-                }
-            }
         }
 
         // Process the mask to check the masked cells for remove_stack components
@@ -397,8 +434,6 @@ fn clear_matches(
             }
         }
 
-        commands.entity(board_id)
-            .insert(ResolveTimer(Timer::from_seconds(0.3, TimerMode::Once)));
         let mut amount = 0;
         for row in 0..board.rows {
             for col in 0..board.cols {
@@ -436,15 +471,6 @@ fn clear_matches(
                         };
                         if should_clear {
                             commands.entity(cell_id).insert(ClearedCell);
-
-                            /**
-                            commands.entity(cell_id).despawn_recursive();
-                            commands.spawn((
-                                BoardPosition { row: row as u8, column: col as u8 },
-                                ClearedCell { color, was_virus},
-                                InBoard(board_id),
-                            )).set_parent(board_id);
-                            */
                             if was_virus {
                                 events.send(BoardEvent::virus_removed(board_id, cell_id, Virus(color), row as u8, col as u8));
                             }
@@ -457,6 +483,7 @@ fn clear_matches(
                 }
             }
         }
+        commands.entity(board_id).insert(ResolveTimer(Timer::from_seconds(0.3, TimerMode::Once)));
         events.send(BoardEvent::cells_cleared(board_id, amount));
         **board = next_board;
     }
@@ -573,7 +600,7 @@ fn sync_with_board(
     board_query: Query<(Entity, &GameBoard), With<NeedsSync>>,
     mut position_query: Query<&mut BoardPosition>,
 ) {
-    for (board_entity, board) in board_query.iter() {
+    for (board_id, board) in board_query.iter() {
         for row in 0..board.rows {
             for col in 0..board.cols {
                 if let Cell::Pill(pill_ent, _, maybe_orientation) = board.get(row, col) {
@@ -591,7 +618,7 @@ fn sync_with_board(
                 }
             }
         }
-        commands.entity(board_entity).remove::<NeedsSync>();
+        commands.entity(board_id).remove::<NeedsSync>();
     }
 }
 
