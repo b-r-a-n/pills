@@ -21,11 +21,11 @@ impl Plugin for MenuPlugin {
                         pause_game, 
                     )
                         .run_if(in_state(AppState::InGame)),
-                    menu
+                    (menu, add_icons)
                         .run_if(in_state(AppState::Menu))
                 )
             )
-            .add_systems(Startup, startup_menu)
+            .add_systems(Startup, (startup_menu, setup_resources))
             .add_systems(OnEnter(AppState::Menu),  spawn_menu)
             .add_systems(OnExit(AppState::Menu), cleanup_menu)
             .add_systems(OnEnter(GameState::Finished), handle_level_finished)
@@ -129,34 +129,6 @@ fn add_level_button_bundle_with_icons(world: &mut World, id: Entity) {
                     },
                 ));
             });
-            // Bottom section with icons
-            parent.spawn(
-                NodeBundle {
-                    style: Style {
-                        flex_direction: FlexDirection::Row,
-                        ..default()
-                    },
-                    background_color: Color::DARK_GRAY.into(),
-                    ..default()
-                }
-            ).with_children(|parent| {
-                // Icon for each augment
-                for _ in 0..=3 {
-                    parent.spawn(
-                        NodeBundle {
-                            style: Style {
-                                margin: UiRect::all(Val::Px(8.0)),
-                                width: Val::Px(32.0),
-                                height: Val::Px(32.0),
-                                ..default()
-                            },
-                            background_color: Color::PINK.into(),
-                            ..default()
-                        }
-                    );
-                }
-            });
-
         });
 }
 
@@ -202,6 +174,67 @@ enum AppState {
 #[derive(Resource)]
 struct MenuData {
     root_entity: Entity,
+}
+
+#[derive(Resource)]
+struct IconAtlasHandle(Handle<TextureAtlas>);
+
+fn setup_resources(
+    mut commands: Commands,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    asset_server: Res<AssetServer>,
+) {
+    let texture_handle = asset_server.load("textures/icons.png");
+    let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::new(64.0, 64.0), 1, 5, None, None);
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+    commands.insert_resource(IconAtlasHandle(texture_atlas_handle));
+}
+
+fn add_icons(
+    mut commands: Commands,
+    icons: Res<IconAtlasHandle>,
+    menu_options: Query<(Entity, &Parent, &SelectedLevelConfig), (Added<MenuOption>, Added<SelectedLevelConfig>)>,
+    level_configs: Query<&LevelConfig>,
+    icon_indices: Query<&AugmentIconIndex>,
+) {
+    for (id, parent_id, config_id) in &menu_options {
+        if let Ok(level_config) = level_configs.get(config_id.0) {
+            // Bottom section with icons
+            commands.entity(parent_id.get()).with_children(|parent| {
+                parent.spawn(
+                    NodeBundle {
+                        style: Style {
+                            flex_direction: FlexDirection::Row,
+                            flex_wrap: FlexWrap::Wrap,
+                            ..default()
+                        },
+                        background_color: Color::DARK_GRAY.into(),
+                        ..default()
+                    }
+                ).with_children(|parent| {
+                    // Icon for each augment
+                    for augment_id in &level_config.augments {
+                        if let Ok(icon_index) = &icon_indices.get(*augment_id) {
+                            info!("\tAugment {:?} atlas index: {:?}", augment_id, icon_index);
+                            parent.spawn(
+                                AtlasImageBundle {
+                                    style: Style {
+                                        margin: UiRect::all(Val::Px(8.0)),
+                                        width: Val::Px(32.0),
+                                        height: Val::Px(32.0),
+                                        ..default()
+                                    },
+                                    texture_atlas: icons.0.clone(),
+                                    texture_atlas_image: UiTextureAtlasImage { index: icon_index.0, ..default()},
+                                    ..default()
+                                }
+                            );
+                        }
+                    }
+                });
+            });
+        }
+    }
 }
 
 fn pause_game(
@@ -399,10 +432,10 @@ fn handle_level_finished(
                 area: AreaOfEffect::Radius(2), 
                 filter: red_viruses, 
             };
-            let explosive_id = commands.spawn(explosive).id();
-            let frequency = Frequency { amount: 10 };
-            let frequency_id = commands.spawn(frequency).id();
-            let level_config = LevelConfig::with_augments(vec![explosive_id, frequency_id]);
+            let explosive_id = commands.spawn_empty().add(Augment::Volatility(explosive)).id();
+            let frequency = Frequency { amount: 1 };
+            let frequency_id = commands.spawn_empty().add(Augment::Frequency(frequency)).id();
+            let level_config = LevelConfig::with_augments(vec![explosive_id, frequency_id, frequency_id, frequency_id, frequency_id, frequency_id, frequency_id, frequency_id]);
             commands.spawn((MenuOption::SpecificLevel, level_config));
 
             commands.spawn((MenuOption::Exit, LastOption));

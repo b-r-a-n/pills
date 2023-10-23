@@ -84,24 +84,37 @@ impl Augment {
     }
 }
 
+#[derive(Component, Debug)]
+pub struct AugmentIconIndex(pub usize);
+
 impl EntityCommand for Augment {
     fn apply(self, id: Entity, world: &mut World) {
         info!("Applying augment {:?}", self);
         match self {
             Augment::Frequency(frequency) => {
-                world.entity_mut(id).insert(frequency);
+                world.entity_mut(id)
+                    .insert(AugmentIconIndex(1))
+                    .insert(frequency);
             },
             Augment::Potency(potency) => {
-                world.entity_mut(id).insert(potency);
+                world.entity_mut(id)
+                    .insert(AugmentIconIndex(3))
+                    .insert(potency);
             },
             Augment::Resilience(resilience) => {
-                world.entity_mut(id).insert(resilience);
+                world.entity_mut(id)
+                    .insert(AugmentIconIndex(2))
+                    .insert(resilience);
             },
             Augment::Urgency(urgency) => {
-                world.entity_mut(id).insert(urgency);
+                world.entity_mut(id)
+                    .insert(AugmentIconIndex(4))
+                    .insert(urgency);
             }
             Augment::Volatility(volatility) => {
-                world.entity_mut(id).insert(volatility);
+                world.entity_mut(id)
+                    .insert(AugmentIconIndex(0))
+                    .insert(volatility);
             },
         }
     }
