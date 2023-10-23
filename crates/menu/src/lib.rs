@@ -433,9 +433,9 @@ fn handle_level_finished(
                 filter: red_viruses, 
             };
             let explosive_id = commands.spawn_empty().add(Augment::Volatility(explosive)).id();
-            let frequency = Frequency { amount: 1 };
+            let frequency = Frequency { amount: 10 };
             let frequency_id = commands.spawn_empty().add(Augment::Frequency(frequency)).id();
-            let level_config = LevelConfig::with_augments(vec![explosive_id, frequency_id, frequency_id, frequency_id, frequency_id, frequency_id, frequency_id, frequency_id]);
+            let level_config = LevelConfig::with_augments(vec![explosive_id, frequency_id]);
             commands.spawn((MenuOption::SpecificLevel, level_config));
 
             commands.spawn((MenuOption::Exit, LastOption));

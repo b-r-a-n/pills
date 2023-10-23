@@ -173,9 +173,9 @@ fn add_virus_sprites(
 fn add_cleared_sprites(
     mut commands: Commands,
     atlas_handle: Res<PieceAtlasHandle>,
-    cleared_query: Query<(Entity, &Transform, AnyOf<(&Pill, &Virus)>), (Added<ClearedCell>, With<BoardPosition>)>,
+    cleared_query: Query<(Entity, &Transform, AnyOf<(&Pill, &Virus)>, Option<&Explosive>), (Added<ClearedCell>, With<BoardPosition>)>,
 ) {
-    for (entity, transform, (pill, virus)) in &cleared_query {
+    for (entity, transform, (pill, virus), maybe_explosive) in &cleared_query {
         let color = match (pill, virus) {
             (Some(pill), None) => {
                 pill.0
@@ -185,7 +185,7 @@ fn add_cleared_sprites(
             },
             _ => unreachable!()
         };
-        let color = match color {
+        let mut color = match color {
             CellColor::RED => RED_COLOR,
             CellColor::YELLOW => YELLOW_COLOR,
             CellColor::BLUE => BLUE_COLOR,
@@ -193,6 +193,9 @@ fn add_cleared_sprites(
             CellColor::GREEN => YELLOW_COLOR,
             CellColor::PURPLE => BLUE_COLOR,
         };
+        if maybe_explosive.is_some_and(|e| match e.0 { AreaOfEffect::Radius(r) => r > 0, _ => false }) {
+            color = Color::WHITE;
+        }
         commands.entity(entity)
             .insert(SpriteSheetBundle {
                 sprite: TextureAtlasSprite { index: 3, color, ..default()},

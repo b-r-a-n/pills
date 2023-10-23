@@ -7,12 +7,12 @@ pub struct Resilience {
 }
 
 pub(crate) fn apply(
-    augments: Query<&Resilience>,
-    mut pieces: Query<(AnyOf<(&Pill, &Virus)>, &mut Stacked), Or<(Added<Pill>, Added<Virus>)>>,
+    augments: Query<(&Resilience, &InBoard)>,
+    mut pieces: Query<(AnyOf<(&Pill, &Virus)>, &mut Stacked, &InBoard), Or<(Added<Pill>, Added<Virus>)>>,
 ) {
-    for augment in &augments {
-        for (piece, mut stacked) in &mut pieces {
-            if (augment.filter)(piece) {
+    for (augment, augment_board_id) in &augments {
+        for (piece, mut stacked, piece_board_id) in &mut pieces {
+            if **augment_board_id == **piece_board_id && (augment.filter)(piece) {
                 stacked.0 += augment.amount as usize;
             }
         }

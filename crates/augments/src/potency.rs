@@ -7,12 +7,12 @@ pub struct Potency {
 }
 
 pub(crate) fn apply(
-    augments: Query<&Potency>,
-    mut pieces: Query<(&Pill, &mut RemoveStack), Added<Pill>>,
+    augments: Query<(&Potency, &InBoard)>,
+    mut pieces: Query<(&Pill, &mut RemoveStack, &InBoard), Added<Pill>>,
 ) {
-    for augment in &augments {
-        for (piece, mut remove_stack) in &mut pieces {
-            if (augment.filter)((Some(piece), None)) {
+    for (augment, augment_board_id) in &augments {
+        for (piece, mut remove_stack, piece_board_id) in &mut pieces {
+            if **augment_board_id == **piece_board_id && (augment.filter)((Some(piece), None)) {
                 remove_stack.0 += augment.amount as usize;
             }
         }

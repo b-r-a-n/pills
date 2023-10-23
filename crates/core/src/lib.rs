@@ -30,6 +30,7 @@ impl Plugin for GamePlugin {
                     spawn_pill, 
                     apply_pill_movement,
                     drop_pieces,
+                    explode_timer,
                     resolve_timer,
                     clear_matches,
                     clear_cleared,
@@ -235,7 +236,7 @@ fn add_pill_to_board(
 
 fn resolve_timer(
     mut commands: Commands,
-    mut timer: Query<(Entity, &mut ResolveTimer), (With<NeedsResolve>, Without<NeedsExplode>)>,
+    mut timer: Query<(Entity, &mut ResolveTimer), (With<NeedsResolve>, Without<ExplodeTimer>, Without<NeedsExplode>)>,
     time: Res<Time>,
 ) {
     for (entity, mut timer) in timer.iter_mut() {
@@ -255,10 +256,10 @@ fn explode_timer(
 ) {
     for (id, mut timer) in timer.iter_mut() {
         if timer.tick(time.delta()).just_finished() { 
+            info!("Explode timer finished. Marking board as NeedsExplode");
             commands.entity(id)
-                .insert(NeedsFall)
                 .remove::<ExplodeTimer>()
-                .remove::<NeedsResolve>();
+                .insert(NeedsExplode);
         }
     }
 }
@@ -267,10 +268,12 @@ fn check_for_explosions(
     mut commands: Commands,
     cleared_cells: Query<(&InBoard, Option<&Explosive>), Added<ClearedCell>>
 ) {
-    // Add the Needs Explode tag to the board
+    if !cleared_cells.is_empty() { info!("New cleared cells found. Checking for explosions."); }
     for (board_id, maybe_explosive) in &cleared_cells {
-        if maybe_explosive.is_some() {
-            commands.entity(**board_id).insert(NeedsExplode);
+        if maybe_explosive.is_some_and(|e| match e.0 { AreaOfEffect::Radius(r) => r > 0, _ => false }) {
+            info!("Found explosion. Starting explode timer.");
+            commands.entity(**board_id)
+                .insert(ExplodeTimer(Timer::from_seconds(0.3, TimerMode::Once)));
         }
     }
 }
@@ -278,15 +281,19 @@ fn check_for_explosions(
 fn resolve_explosions(
     mut commands: Commands,
     explosives: Query<(&Explosive, &BoardPosition, &InBoard), With<ClearedCell>>,
-    mut boards: Query<&mut GameBoard, With<NeedsExplode>>,
+    mut boards: Query<(Entity, &mut GameBoard), With<NeedsExplode>>,
 ) {
+    for (board_id, _) in &mut boards {
+        commands.entity(board_id).remove::<NeedsExplode>();
+    }
     for (explosion, position, board_id) in &explosives {
-        commands.entity(**board_id).remove::<NeedsExplode>();
-        if let Ok(mut board) = boards.get_mut(**board_id) {
+        if let Ok((_, mut board)) = boards.get_mut(**board_id) {
             match explosion.0 {
                 AreaOfEffect::Radius(radius) => {
+                    if radius < 1 { continue; }
                     let (row, col) = (position.row as usize, position.column as usize);
                     for r in 1..=radius {
+                        info!("Clearing cells at radius {} from ({}, {})", r, row, col);
                         let (mut left, mut right, mut up, mut down) = (false, false, false, false);
                         if row as i8 - r as i8 >= 0 {
                             down = true;
