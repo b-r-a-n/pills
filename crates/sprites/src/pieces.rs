@@ -139,16 +139,15 @@ fn setup_resources(
 }
 
 fn update_stack_indicator(
-    mut stack_indicators: Query<&mut Text, With<StackIndicator>>,
-    changed_stacks: Query<(&Children, &Stacked), Changed<Stacked>>,
+    mut stack_indicators: Query<(&Parent, &mut Text), With<StackIndicator>>,
+    stacks: Query<&Stacked>,
 ) {
-    for (children, stack) in &changed_stacks {
-        for child in children {
-            if let Ok(mut stack_text) = stack_indicators.get_mut(*child) {
-                stack_text.sections[0].value = format!("{}", stack.0);
-                continue;
-            }
-        }
+    for (parent, mut text) in &mut stack_indicators {
+        text.sections[0].value = if let Ok(stack) = stacks.get(**parent) {
+            format!("{}", stack.0)
+        } else {
+            "".to_string()
+        };
     }
 }
 

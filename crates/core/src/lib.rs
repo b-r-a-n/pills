@@ -157,7 +157,6 @@ fn spawn_viruses(
     for (entity, mut spawner, mut board, config) in query.iter_mut() {
         commands.entity(entity).with_children(|builder|{
             let mut viruses_remaining = config.max_viruses;
-            info!("Spawning up to {} viruses", viruses_remaining);
             for row in 0..(board.rows-1) as u8 {
                 for col in 0..board.cols as u8 {
                     if viruses_remaining < 1 {
@@ -256,7 +255,6 @@ fn explode_timer(
 ) {
     for (id, mut timer) in timer.iter_mut() {
         if timer.tick(time.delta()).just_finished() { 
-            info!("Explode timer finished. Marking board as NeedsExplode");
             commands.entity(id)
                 .remove::<ExplodeTimer>()
                 .insert(NeedsExplode);
@@ -268,10 +266,8 @@ fn check_for_explosions(
     mut commands: Commands,
     cleared_cells: Query<(&InBoard, Option<&Explosive>), Added<ClearedCell>>
 ) {
-    if !cleared_cells.is_empty() { info!("New cleared cells found. Checking for explosions."); }
     for (board_id, maybe_explosive) in &cleared_cells {
         if maybe_explosive.is_some_and(|e| match e.0 { AreaOfEffect::Radius(r) => r > 0, _ => false }) {
-            info!("Found explosion. Starting explode timer.");
             commands.entity(**board_id)
                 .insert(ExplodeTimer(Timer::from_seconds(0.6, TimerMode::Once)));
         }
@@ -293,7 +289,6 @@ fn resolve_explosions(
                     if radius < 1 { continue; }
                     let (row, col) = (position.row as usize, position.column as usize);
                     for r in 1..=radius {
-                        info!("Clearing cells at radius {} from ({}, {})", r, row, col);
                         let (mut left, mut right, mut up, mut down) = (false, false, false, false);
                         if row as i8 - r as i8 >= 0 {
                             down = true;
@@ -465,14 +460,12 @@ fn clear_matches(
                             let cell_index = board.get_index(row, col);
                             let mask_index = mask[cell_index] as usize;
                             let stacks_removed = mask_lookup[mask_index].unwrap_or(1);
-                            if stacks.0 > 0 {
-                                let removed_amount = std::cmp::min(stacks_removed, stacks.0);
-                                stacks.0 -= removed_amount;
-                            }
-                            if stacks.0 == 1 {
+                            let should_clear = stacks_removed > stacks.0;
+                            stacks.0 -= std::cmp::min(stacks_removed, stacks.0);
+                            if stacks.0 < 1 {
                                 commands.entity(cell_id).remove::<Stacked>();
                             }
-                            stacks.0 < 1
+                            should_clear
                         } else {
                             true
                         };
