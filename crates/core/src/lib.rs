@@ -273,7 +273,7 @@ fn check_for_explosions(
         if maybe_explosive.is_some_and(|e| match e.0 { AreaOfEffect::Radius(r) => r > 0, _ => false }) {
             info!("Found explosion. Starting explode timer.");
             commands.entity(**board_id)
-                .insert(ExplodeTimer(Timer::from_seconds(0.3, TimerMode::Once)));
+                .insert(ExplodeTimer(Timer::from_seconds(0.6, TimerMode::Once)));
         }
     }
 }
