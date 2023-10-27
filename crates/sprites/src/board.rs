@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy::sprite::Anchor;
 use pills_level::*;
 use pills_core::*;
+use pills_ui::{ContentContainer, SidebarContainer};
 use super::*;
 
 #[derive(Default, PartialEq, Resource)]
@@ -96,13 +97,24 @@ fn add_board_sprites(
 }
 
 fn update_transforms(
-    mut query: Query<(&BoardBackground, &Sprite, &mut Transform), Added<BoardBackground>>,
+    mut boards: Query<(&BoardBackground, &Sprite, &mut Transform), Added<BoardBackground>>,
+    transforms: Query<(&GlobalTransform, &Node)>,
+    content_container: Res<ContentContainer>,
+
 ) {
-    for (background, sprite, mut transform) in query.iter_mut() {
-        let mut x = 0.0;
-        if let Some(size) = sprite.custom_size {
-            x = (background.0 as f32) * size.x;
+    if boards.is_empty() {
+        return;
+    }
+    if let Ok((global_content_transform, content_size)) = transforms.get(content_container.0) {
+        info!("Global content transform: {:?} {:?}", global_content_transform, content_size);
+        for (background, sprite, mut transform) in boards.iter_mut() {
+            //let mut x = -content_size.size().x/2.0;
+            let mut x = 0.0;
+            if let Some(size) = sprite.custom_size {
+                x += (background.0 as f32) * size.x;
+                info!("Board offset {:?}", x);
+            }
+            transform.translation = Vec3::new(x, 0.0, 1.0);
         }
-        transform.translation = Vec3::new(x, 0.0, 1.0);
     }
 }

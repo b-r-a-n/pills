@@ -18,10 +18,10 @@ pub struct Tooltip(pub String);
 pub struct TooltipContainer;
 
 #[derive(Resource, Deref, DerefMut)]
-struct ContentContainer(Entity);
+pub struct ContentContainer(pub Entity);
 
 #[derive(Resource, Deref, DerefMut)]
-struct SidebarContainer(Entity);
+pub struct SidebarContainer(pub Entity);
 
 fn setup_ui_grid(
     mut commands: Commands,
@@ -29,10 +29,24 @@ fn setup_ui_grid(
     let sidebar = commands
         .spawn(NodeBundle{
             style: Style {
-                display: Display::Grid,
+                display: Display::Flex,
+                flex_direction: FlexDirection::Column,
+                width: Val::Px(200.0),
                 ..default()
             },
-            background_color: Color::BLUE.into(),
+            background_color: Color::PURPLE.into(),
+            ..default()
+        })
+        .id();
+    let content = commands
+        .spawn(NodeBundle {
+            style: Style {
+                display: Display::Flex,
+                flex_direction: FlexDirection::Column,
+                width: Val::Px(600.0),
+                ..default()
+            },
+            background_color: Color::rgba(0.0, 0.0, 0.0, 0.3).into(),
             ..default()
         })
         .id();
@@ -40,16 +54,17 @@ fn setup_ui_grid(
         .spawn(NodeBundle {
             style: Style {
                 display: Display::Flex,
+                flex_direction: FlexDirection::Row,
                 width: Val::Auto,
                 height: Val::Percent(100.0),
                 ..default()
             },
-            background_color: Color::PURPLE.into(),
             ..default()
         })
-        .add_child(sidebar);
+        .add_child(sidebar)
+        .add_child(content);
     commands.insert_resource(SidebarContainer(sidebar));
-    //commands.insert_resource(ContentContainer(content));
+    commands.insert_resource(ContentContainer(content));
 }
 
 fn spawn_tooltip(

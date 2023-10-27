@@ -2649,6 +2649,7 @@ dependencies = [
  "pills_game_board",
  "pills_input",
  "pills_level",
+ "pills_ui",
 ]
 
 [[package]]

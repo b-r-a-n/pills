@@ -46,11 +46,11 @@ pub struct Level {
     outcome: Outcome,
 }
 
-impl Level {
-    fn from_config(config: &LevelConfig) -> Self {
+impl Default for Level {
+    fn default() -> Self {
         Level {
             root: None,
-            board_configs: config.augments.clone(),
+            board_configs: vec![],
             terminal_condition: TerminalCondition::NoneRemaining,
             outcome: Outcome::None,
         }
@@ -152,7 +152,7 @@ pub fn spawn_single_board_level_with_config(commands: &mut Commands, level_confi
     for augment_id in &level_config.augments {
         commands.entity(*augment_id).insert(InBoard(board_entity));
     }
-    let mut level = Level::from_config(level_config);
+    let mut level = Level::default();
     level.board_configs.push(board_entity);
     commands.insert_resource(level);
     board_entity

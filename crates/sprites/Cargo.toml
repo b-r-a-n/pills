@@ -13,3 +13,4 @@ pills_core.workspace = true
 pills_input.workspace = true
 pills_level.workspace = true
 pills_game_board.workspace = true
+pills_ui.workspace = true
