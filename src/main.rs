@@ -10,8 +10,6 @@ use pills_ui::*;
 use pills_score::*;
 use pills_augments::*;
 
-/// Put systems here
-/// 
 fn setup_camera(
     mut commands: Commands
 ) {
@@ -24,40 +22,6 @@ fn setup_player(
     commands.spawn(Player);
 }
 
-#[derive(Resource, Deref, DerefMut)]
-struct ContentContainer(Entity);
-
-#[derive(Resource, Deref, DerefMut)]
-struct SidebarContainer(Entity);
-
-fn setup_ui_grid(
-    mut commands: Commands,
-) {
-    let sidebar = commands
-        .spawn(NodeBundle{
-            style: Style {
-                display: Display::Grid,
-                ..default()
-            },
-            background_color: Color::BLUE.into(),
-            ..default()
-        })
-        .id();
-    commands
-        .spawn(NodeBundle {
-            style: Style {
-                display: Display::Flex,
-                width: Val::Auto,
-                height: Val::Percent(100.0),
-                ..default()
-            },
-            background_color: Color::PURPLE.into(),
-            ..default()
-        })
-        .add_child(sidebar);
-    commands.insert_resource(SidebarContainer(sidebar));
-    //commands.insert_resource(ContentContainer(content));
-}
 
 fn print_state_change(
     state: Res<State<GameState>>,
@@ -81,14 +45,15 @@ fn main() {
             Startup, 
             (
                 setup_camera, 
-                setup_ui_grid,
                 setup_player,
                 //|mut commands: Commands| { add_augment(&mut commands, SUPERBUG); },
             )
         )
         .add_systems(
-            Update, 
-            bevy::window::close_on_esc)
-        .add_systems(Update, print_state_change.run_if(state_changed::<GameState>()))
+            Update, (
+                print_state_change.run_if(state_changed::<GameState>()),
+                bevy::window::close_on_esc,
+            ) 
+        )
         .run();
 }

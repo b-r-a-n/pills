@@ -5,6 +5,7 @@ pub struct PillsUiPlugin;
 impl Plugin for PillsUiPlugin {
     fn build(&self, app: &mut App) {
         app
+            .add_systems(Startup, setup_ui_grid)
             .add_systems(Update, handle_hover)
         ;
     }
@@ -15,6 +16,41 @@ pub struct Tooltip(pub String);
 
 #[derive(Component)]
 pub struct TooltipContainer;
+
+#[derive(Resource, Deref, DerefMut)]
+struct ContentContainer(Entity);
+
+#[derive(Resource, Deref, DerefMut)]
+struct SidebarContainer(Entity);
+
+fn setup_ui_grid(
+    mut commands: Commands,
+) {
+    let sidebar = commands
+        .spawn(NodeBundle{
+            style: Style {
+                display: Display::Grid,
+                ..default()
+            },
+            background_color: Color::BLUE.into(),
+            ..default()
+        })
+        .id();
+    commands
+        .spawn(NodeBundle {
+            style: Style {
+                display: Display::Flex,
+                width: Val::Auto,
+                height: Val::Percent(100.0),
+                ..default()
+            },
+            background_color: Color::PURPLE.into(),
+            ..default()
+        })
+        .add_child(sidebar);
+    commands.insert_resource(SidebarContainer(sidebar));
+    //commands.insert_resource(ContentContainer(content));
+}
 
 fn spawn_tooltip(
     commands: &mut Commands,

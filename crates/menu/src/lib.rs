@@ -3,7 +3,6 @@ use bevy::ecs::system::EntityCommand;
 use pills_core::*;
 use pills_level::*;
 use pills_score::*;
-use pills_ui::*;
 use pills_augments::*;
 
 pub struct MenuPlugin;
@@ -197,7 +196,7 @@ fn add_icons(
     level_configs: Query<&LevelConfig>,
     icon_indices: Query<&AugmentIconIndex>,
 ) {
-    for (id, parent_id, config_id) in &menu_options {
+    for (_, parent_id, config_id) in &menu_options {
         if let Ok(level_config) = level_configs.get(config_id.0) {
             // Bottom section with icons
             commands.entity(parent_id.get()).with_children(|parent| {

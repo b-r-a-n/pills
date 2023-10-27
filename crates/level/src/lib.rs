@@ -50,7 +50,7 @@ impl Level {
     fn from_config(config: &LevelConfig) -> Self {
         Level {
             root: None,
-            board_configs: vec![],
+            board_configs: config.augments.clone(),
             terminal_condition: TerminalCondition::NoneRemaining,
             outcome: Outcome::None,
         }
