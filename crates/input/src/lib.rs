@@ -20,7 +20,9 @@ impl Plugin for InputPlugin {
             .add_systems(Update, (
                 handle_drop_input, 
                 handle_movement_input, 
-                handle_rotate_input)
+                handle_rotate_input,
+                handle_pause_input,
+            )
                     .run_if(in_state(GameState::Active))
             )
         ;
@@ -115,5 +117,18 @@ fn handle_rotate_input(
                 commands.entity(piece_ent).insert(Rotate::Right);
             }
         }
+    }
+}
+
+fn handle_pause_input(
+    key_controlled_board: Query<Entity, With<KeyControlled>>,
+    mut game_state: ResMut<NextState<GameState>>,
+    input: Res<Input<KeyCode>>,
+) {
+    if key_controlled_board.is_empty() {
+        return
+    }
+    if input.just_pressed(KeyCode::Space) {
+        game_state.set(GameState::Paused);
     }
 }

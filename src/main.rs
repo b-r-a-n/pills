@@ -40,7 +40,7 @@ fn main() {
         .add_plugins(GamePlugin)
         .add_plugins(InputPlugin)
         .add_plugins(SoundPlugin)
-        .add_plugins(MenuPlugin)
+        .add_plugins(MenuPluginGroup)
         .add_systems(
             Startup, 
             (

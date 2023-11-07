@@ -5,8 +5,10 @@ use rand::{thread_rng, Rng};
 use rand::rngs::ThreadRng;
 
 pub use game_state::*;
+pub use app_state::*;
 pub use events::*;
 
+mod app_state;
 mod game_state;
 mod events;
 
@@ -16,6 +18,7 @@ impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app
             .add_event::<BoardEvent>()
+            .add_state::<AppState>()
             .add_state::<GameState>()
             .add_systems(
                 OnEnter(GameState::Starting), 
